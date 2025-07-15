@@ -2,5 +2,4 @@ streamlit
 pandas
 reportlab
 pillow
-st-aggrid
 openpyxl
