@@ -165,29 +165,7 @@ alusta_excel()
 koneet = lue_koneet()
 df = lue_data()
 
-kuva_base64 = taustakuva_local("tausta.png")
 
-st.markdown(
-    f"""
-    <div style="
-        background-image: url('{kuva_base64}');
-        background-size: cover;
-        background-position: center;
-        padding: 80px 0 80px 0;
-        margin-bottom: 0.2em;
-        text-align: center;
-        width: 100vw;
-        position: relative;
-        left: 50%;
-        right: 50%;
-        margin-left: -50vw;
-        margin-right: -50vw;
-    ">
-        <h2 style="color:#fff; text-shadow:2px 2px 6px #333;">Konehuolto-ohjelma (selainversio)</h2>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
 st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 Koneet ja ryhmät"])
