@@ -2,28 +2,28 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+from datetime import datetime
+from io import BytesIO
+from reportlab.lib.pagesizes import landscape, A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from PIL import Image
+import base64
+
+EXCEL_TIEDOSTO = "konehuollot.xlsx"
+KONEET_TIEDOSTO = "koneet.json"
+
+st.set_page_config(page_title="Konehuolto", layout="wide")
 st.markdown("""
     <style>
-    /* Poistaa ylämarginaalin ja tiivistää kaiken ylös */
     .block-container {
         padding-top: 0rem !important;
         margin-top: 0rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
-from datetime import datetime
-from io import BytesIO
-from reportlab.lib.pagesizes import landscape, A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
-from PIL import Image
-#from st_aggrid import AgGrid, GridOptionsBuilder
-
-EXCEL_TIEDOSTO = "konehuollot.xlsx"
-KONEET_TIEDOSTO = "koneet.json"
-
-st.set_page_config(page_title="Konehuolto", layout="wide")
 
 def alusta_koneet_json():
     if not os.path.exists(KONEET_TIEDOSTO):
@@ -63,105 +63,107 @@ def tallenna_data(df):
     df = df.reindex(columns=sarakkeet)
     df.to_excel(EXCEL_TIEDOSTO, index=False)
 
-
-def konekohtainen_naytto_nimi_id_sitten_huollot_tyhjalla(df, huolto_kohteet):
+def konekohtainen_naytto_nimi_id_samalle_riville(df, huolto_kohteet):
     if df.empty:
         return pd.DataFrame([], columns=["Rivi"] + [c for c in df.columns if c != "ID"]), []
     df2 = df.copy()
     columns = ["Rivi"] + [c for c in df2.columns if c != "ID"]
     uudet_rivit = []
     index_map = []
+    rivinro = 1
     viime_kone = None
+    viime_id = None
     koneen_huollot = []
     buffer_idxs = []
-    rivinro = 1
+
+    def pure_koneen_huollot():
+        nonlocal rivinro
+        if not koneen_huollot:
+            return
+        # Ensimmäinen huolto: koneen nimi + tiedot
+        r = {col: koneen_huollot[0][col] for col in columns if col != "Rivi"}
+        for kohta in huolto_kohteet:
+            val = str(koneen_huollot[0].get(kohta, "--")).strip()
+            if val.lower() == "ok":
+                r[kohta] = "✅"
+            elif val == "" or val.lower() == "nan":
+                r[kohta] = "--"
+            else:
+                r[kohta] = val
+        r["Kone"] = koneen_huollot[0]["Kone"]
+        rivi = {"Rivi": rivinro}
+        rivi.update(r)
+        uudet_rivit.append(rivi)
+        index_map.append(buffer_idxs[0])
+        rivinro += 1
+        # Toinen huolto (jos on): id + tiedot
+        if len(koneen_huollot) > 1:
+            r2 = {col: koneen_huollot[1][col] for col in columns if col != "Rivi"}
+            for kohta in huolto_kohteet:
+                val = str(koneen_huollot[1].get(kohta, "--")).strip()
+                if val.lower() == "ok":
+                    r2[kohta] = "✅"
+                elif val == "" or val.lower() == "nan":
+                    r2[kohta] = "--"
+                else:
+                    r2[kohta] = val
+            kone_id = str(koneen_huollot[1]["ID"]) if "ID" in koneen_huollot[1] else ""
+            r2["Kone"] = kone_id
+            rivi2 = {"Rivi": rivinro}
+            rivi2.update(r2)
+            uudet_rivit.append(rivi2)
+            index_map.append(buffer_idxs[1])
+            rivinro += 1
+        # Mahdolliset lisähuollot: tyhjä Kone-sarake
+        for i in range(2, len(koneen_huollot)):
+            r3 = {col: koneen_huollot[i][col] for col in columns if col != "Rivi"}
+            for kohta in huolto_kohteet:
+                val = str(koneen_huollot[i].get(kohta, "--")).strip()
+                if val.lower() == "ok":
+                    r3[kohta] = "✅"
+                elif val == "" or val.lower() == "nan":
+                    r3[kohta] = "--"
+                else:
+                    r3[kohta] = val
+            r3["Kone"] = ""
+            rivi3 = {"Rivi": rivinro}
+            rivi3.update(r3)
+            uudet_rivit.append(rivi3)
+            index_map.append(buffer_idxs[i])
+            rivinro += 1
+
     for idx, row in df2.iterrows():
         kone = row["Kone"]
-        kone_id = str(row["ID"]) if "ID" in row else ""
-        if kone != viime_kone:
-            if viime_kone is not None:
-                # Tyhjä rivi, jolla myös rivinumero (jätetään tyhjäksi)
-                uudet_rivit.append({col: "" for col in columns})
-                index_map.append(None)
-                # Puretaan aiemmat huollot
-                for i, h in enumerate(koneen_huollot):
-                    r = {col: h[col] for col in columns if col != "Rivi"}
-                    for kohta in huolto_kohteet:
-                        val = str(h.get(kohta, "")).strip()
-                        if val.lower() == "ok":
-                            r[kohta] = "✅"
-                        else:
-                            r[kohta] = val
-                    if i == 0:
-                        r["Kone"] = viime_kone
-                        r["Ryhmä"] = h["Ryhmä"]
-                    elif i == 1:
-                        r["Kone"] = viime_id
-                        r["Ryhmä"] = ""
-                    else:
-                        r["Kone"] = ""
-                        r["Ryhmä"] = ""
-                    rivi = {"Rivi": rivinro}
-                    rivi.update(r)
-                    uudet_rivit.append(rivi)
-                    rivinro += 1
-                    if i > 1 or (i == 0 and viime_kone):
-                        index_map.append(buffer_idxs[i])
-                    else:
-                        index_map.append(None)
-                koneen_huollot = []
-                buffer_idxs = []
-            viime_kone = kone
-            viime_id = kone_id
+        if viime_kone is not None and kone != viime_kone:
+            # Tyhjä rivi
+            empty_row = {col: "" for col in columns if col != "Rivi"}
+            rivi = {"Rivi": rivinro}
+            rivi.update(empty_row)
+            uudet_rivit.append(rivi)
+            index_map.append(None)
+            rivinro += 1
+            # Purkaus
+            pure_koneen_huollot()
+            koneen_huollot = []
+            buffer_idxs = []
+        viime_kone = kone
+        viime_id = str(row["ID"]) if "ID" in row else ""
         koneen_huollot.append(row)
         buffer_idxs.append(idx)
-    # Lopuksi viimeinen koneen bufferi
-    if koneen_huollot:
-        for i, h in enumerate(koneen_huollot):
-            r = {col: h[col] for col in columns if col != "Rivi"}
-            for kohta in huolto_kohteet:
-                val = str(h.get(kohta, "")).strip()
-                if val.lower() == "ok":
-                    r[kohta] = "✅"
-                else:
-                    r[kohta] = val
-            if i == 0:
-                r["Kone"] = viime_kone
-                r["Ryhmä"] = h["Ryhmä"]
-            elif i == 1:
-                r["Kone"] = viime_id
-                r["Ryhmä"] = ""
-            else:
-                r["Kone"] = ""
-                r["Ryhmä"] = ""
-            rivi = {"Rivi": rivinro}
-            rivi.update(r)
-            uudet_rivit.append(rivi)
-            rivinro += 1
-            if i > 1 or (i == 0 and viime_kone):
-                index_map.append(buffer_idxs[i])
-            else:
-                index_map.append(None)
+    # Viimeinen kone
+    pure_koneen_huollot()
+
     return pd.DataFrame(uudet_rivit, columns=columns), index_map
-
-
-
-
-# Alustukset
-alusta_koneet_json()
-alusta_excel()
-koneet = lue_koneet()
-df = lue_data()
-
-# (Valinnainen debug print jos haluat nähdä alussa rivimäärän)
-#print("Alussa rivejä:", len(df))
-
-import base64
 
 def taustakuva_local(filename):
     with open(filename, "rb") as image_file:
         encoded = base64.b64encode(image_file.read()).decode()
     return f"data:image/jpg;base64,{encoded}"
+
+alusta_koneet_json()
+alusta_excel()
+koneet = lue_koneet()
+df = lue_data()
 
 kuva_base64 = taustakuva_local("tausta.png")
 
@@ -188,10 +190,7 @@ st.markdown(
 )
 st.markdown("---")
 
-
-
 tab1, tab2, tab3 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 Koneet ja ryhmät"])
-
 
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
@@ -206,7 +205,6 @@ with tab1:
 
     if st.session_state.tallennettu:
         st.success("Tallennettu!")
-        # Nollaa kaikki kentät
         st.session_state.kayttotunnit = ""
         st.session_state.vapaa = ""
         for kohta in [
@@ -276,10 +274,6 @@ with tab1:
                 st.session_state.tallennettu = True
                 st.rerun()
 
-
-
-#from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
-
 with tab2:
     st.markdown("### Huoltohistoria")
     huolto_kohteet = [
@@ -321,99 +315,6 @@ with tab2:
     filtered2_df["pvmjarjestys"] = pd.to_datetime(filtered2_df["Päivämäärä"], format="%d.%m.%Y", errors="coerce")
     filtered2_df = filtered2_df.sort_values(["konejarjestys", "pvmjarjestys"])
 
-    # FUNKTIO: 2-malli
-    def konekohtainen_naytto_nimi_id_samalle_riville(df, huolto_kohteet):
-        if df.empty:
-            return pd.DataFrame([], columns=["Rivi"] + [c for c in df.columns if c != "ID"]), []
-        df2 = df.copy()
-        columns = ["Rivi"] + [c for c in df2.columns if c != "ID"]
-        uudet_rivit = []
-        index_map = []
-        rivinro = 1
-        viime_kone = None
-        viime_id = None
-        koneen_huollot = []
-        buffer_idxs = []
-
-        def pure_koneen_huollot():
-            nonlocal rivinro
-            if not koneen_huollot:
-                return
-            # Ensimmäinen huolto: koneen nimi + tiedot
-            r = {col: koneen_huollot[0][col] for col in columns if col != "Rivi"}
-            for kohta in huolto_kohteet:
-                val = str(koneen_huollot[0].get(kohta, "--")).strip()
-                if val.lower() == "ok":
-                    r[kohta] = "✅"
-                elif val == "" or val.lower() == "nan":
-                    r[kohta] = "--"
-                else:
-                    r[kohta] = val
-            r["Kone"] = koneen_huollot[0]["Kone"]
-            rivi = {"Rivi": rivinro}
-            rivi.update(r)
-            uudet_rivit.append(rivi)
-            index_map.append(buffer_idxs[0])
-            rivinro += 1
-            # Toinen huolto (jos on): id + tiedot
-            if len(koneen_huollot) > 1:
-                r2 = {col: koneen_huollot[1][col] for col in columns if col != "Rivi"}
-                for kohta in huolto_kohteet:
-                    val = str(koneen_huollot[1].get(kohta, "--")).strip()
-                    if val.lower() == "ok":
-                        r2[kohta] = "✅"
-                    elif val == "" or val.lower() == "nan":
-                        r2[kohta] = "--"
-                    else:
-                        r2[kohta] = val
-                kone_id = str(koneen_huollot[1]["ID"]) if "ID" in koneen_huollot[1] else ""
-                r2["Kone"] = kone_id
-                rivi2 = {"Rivi": rivinro}
-                rivi2.update(r2)
-                uudet_rivit.append(rivi2)
-                index_map.append(buffer_idxs[1])
-                rivinro += 1
-            # Mahdolliset lisähuollot: tyhjä Kone-sarake
-            for i in range(2, len(koneen_huollot)):
-                r3 = {col: koneen_huollot[i][col] for col in columns if col != "Rivi"}
-                for kohta in huolto_kohteet:
-                    val = str(koneen_huollot[i].get(kohta, "--")).strip()
-                    if val.lower() == "ok":
-                        r3[kohta] = "✅"
-                    elif val == "" or val.lower() == "nan":
-                        r3[kohta] = "--"
-                    else:
-                        r3[kohta] = val
-                r3["Kone"] = ""
-                rivi3 = {"Rivi": rivinro}
-                rivi3.update(r3)
-                uudet_rivit.append(rivi3)
-                index_map.append(buffer_idxs[i])
-                rivinro += 1
-
-        for idx, row in df2.iterrows():
-            kone = row["Kone"]
-            if viime_kone is not None and kone != viime_kone:
-                # Täysin tyhjä väli!
-                empty_row = {col: "" for col in columns if col != "Rivi"}
-                rivi = {"Rivi": rivinro}
-                rivi.update(empty_row)
-                uudet_rivit.append(rivi)
-                index_map.append(None)
-                rivinro += 1
-                # Purkaus
-                pure_koneen_huollot()
-                koneen_huollot = []
-                buffer_idxs = []
-            viime_kone = kone
-            viime_id = str(row["ID"]) if "ID" in row else ""
-            koneen_huollot.append(row)
-            buffer_idxs.append(idx)
-        # Viimeinen kone
-        pure_koneen_huollot()
-
-        return pd.DataFrame(uudet_rivit, columns=columns), index_map
-
     df_naytto, index_map = konekohtainen_naytto_nimi_id_samalle_riville(filtered2_df, huolto_kohteet)
     df_naytto = df_naytto.reindex(columns=esikatselu_sarakkeet)
     df_naytto = df_naytto.fillna("--")
@@ -423,99 +324,11 @@ with tab2:
     for col in df_naytto.columns:
         df_naytto[col] = df_naytto[col].astype(str)
 
-    gb = GridOptionsBuilder.from_dataframe(df_naytto)
-    gb.configure_default_column(editable=False, wrapText=True, autoHeight=True)
-    gb.configure_column("Rivi", width=50)
-    gb.configure_column("Kone", width=220)
-    gb.configure_column("Ryhmä", width=120)
-    gb.configure_column("Tunnit", width=80)
-    gb.configure_column("Päivämäärä", width=110)
-    gb.configure_column("Vapaa teksti", width=200)
-    for kohde in huolto_kohteet:
-        gb.configure_column(kohde, width=50)
-    gb.configure_selection('single')
-    grid_options = gb.build()
-
-    fit = True
-
-    grid_response = AgGrid(
-        df_naytto,
-        gridOptions=grid_options,
-        fit_columns_on_grid_load=fit,
-        allow_unsafe_jscode=True,
-        enable_enterprise_modules=False,
-        theme="streamlit",
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
-        data_return_mode=DataReturnMode.FILTERED
-    )
-
-    selected_rows = grid_response['selected_rows']
-    if selected_rows is not None and len(selected_rows) > 0:
-        if hasattr(selected_rows, "iloc"):
-            valittu_rivi = selected_rows.iloc[0].to_dict()
-        else:
-            valittu_rivi = selected_rows[0]
-        naytto_idx = int(valittu_rivi['Rivi']) - 1
-        # Tyhjää, koneen nimi tai ID-riviä ei voi muokata (index_mapissa None)
-        if naytto_idx < len(index_map) and index_map[naytto_idx] is not None:
-            data_idx = index_map[naytto_idx]
-            row = filtered2_df.loc[data_idx]
-            st.markdown("#### Muokkaa tai poista huoltotapahtuma")
-            muokkaa = st.checkbox("Muokkaa tätä riviä", key=f"muokkaa_{naytto_idx}")
-            if muokkaa:
-                kayttotunnit_uusi = st.text_input("Tunnit/km", value=str(row["Tunnit"]), key=f"edit_tunnit_{naytto_idx}")
-                pvm_uusi = st.text_input("Päivämäärä", value=str(row["Päivämäärä"]), key=f"edit_pvm_{naytto_idx}")
-                vapaa_uusi = st.text_area("Vapaa teksti", value=str(row.get("Vapaa teksti", "")), key=f"edit_vapaa_{naytto_idx}")
-                valinnat_uusi = {}
-                for kohta in huolto_kohteet:
-                    nykyarvo = str(row.get(kohta, "--"))
-                    vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
-                    idx_vaihtoehto = vaihtoehdot.index(nykyarvo) if nykyarvo in vaihtoehdot else 0
-                    valinnat_uusi[kohta] = st.selectbox(
-                        f"{kohta}:", vaihtoehdot,
-                        index=idx_vaihtoehto,
-                        key=f"edit_{kohta}_{naytto_idx}"
-                    )
-                if st.button("Tallenna muutokset", key=f"tallenna_{naytto_idx}"):
-                    idx = data_idx
-                    for col in ["Vapaa teksti"] + huolto_kohteet:
-                        if col in df.columns:
-                            df[col] = df[col].astype(str)
-                    df.at[idx, "Tunnit"] = str(kayttotunnit_uusi)
-                    df.at[idx, "Päivämäärä"] = pvm_uusi
-                    df.at[idx, "Vapaa teksti"] = vapaa_uusi
-                    for kohta in huolto_kohteet:
-                        if kohta in df.columns:
-                            df.at[idx, kohta] = str(valinnat_uusi[kohta])
-                    tallenna_data(df)
-                    st.success("Muutokset tallennettu!")
-                    st.rerun()
-            if st.button("Poista tämä rivi", key=f"poista_{naytto_idx}"):
-                idx = data_idx
-                df = df.drop(idx)
-                df = df.reset_index(drop=True)
-                tallenna_data(df)
-                st.success("Rivi poistettu!")
-                st.rerun()
-        else:
-            st.info("Tyhjää väli-, koneen nimi- tai ID-riviä ei voi muokata.")
-    else:
-        st.info("Jos haluat muokata huoltoa klikkaa ensin muokattava rivi taulukosta.")
-
-
-
+    st.dataframe(df_naytto)
 
     st.markdown("#### Lataa huoltohistoria PDF-tiedostona")
     if st.button("Lataa PDF"):
-        # Poista rivinumero ennen PDF:n muodostusta
         pdf_naytto = df_naytto.drop(columns=["Rivi"]).copy()
-
-        from reportlab.lib.pagesizes import landscape, A4
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib import colors
-        from reportlab.lib.units import mm
-        from datetime import datetime
 
         def pdf_footer(canvas, doc):
             canvas.saveState()
@@ -576,7 +389,6 @@ with tab2:
         for (j,i) in green_cells:
             ts.add('TEXTCOLOR', (j,i), (j,i), colors.green)
         table.setStyle(ts)
-        from io import BytesIO
         buffer = BytesIO()
         doc = SimpleDocTemplate(
             buffer, pagesize=landscape(A4),
@@ -597,16 +409,12 @@ with tab2:
             mime="application/pdf"
         )
 
-
-
-
 with tab3:
     st.header("Koneiden ja ryhmien hallinta")
 
     koneet_nyt = lue_koneet()
     ryhmat_lista = list(koneet_nyt.keys())
 
-    # --- Koneen lisäys ensimmäisenä ---
     st.subheader("Lisää kone")
     uusi_ryhma = st.selectbox("Ryhmän valinta tai luonti", ryhmat_lista+["Uusi ryhmä"], key="uusi_ryhma")
     kaytettava_ryhma = st.text_input("Uuden ryhmän nimi") if uusi_ryhma=="Uusi ryhmä" else uusi_ryhma
@@ -622,7 +430,6 @@ with tab3:
         else:
             st.warning("Täytä kaikki kentät.")
 
-    # --- Koneen poisto heti seuraavana ---
     st.subheader("Poista kone")
     if ryhmat_lista:
         valitse_ryhma_poisto = st.selectbox("Valitse ryhmä (poistoa varten)", ryhmat_lista, key="poistoryhma")
@@ -642,7 +449,6 @@ with tab3:
         st.info("Ei ryhmiä.")
 
     st.markdown("---")
-    # --- Ryhmän koneet listataan tämän jälkeen ---
     st.subheader("Ryhmän koneet")
     if ryhmat_lista:
         ryhma_valinta = st.selectbox("Näytä koneet ryhmästä", ryhmat_lista, key="ryhmat_lista_nakyma")
