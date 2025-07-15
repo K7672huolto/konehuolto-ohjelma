@@ -23,7 +23,7 @@ def login():
     username = st.text_input("Käyttäjätunnus")
     password = st.text_input("Salasana", type="password")
     if st.button("Kirjaudu"):
-        if username == "oma_käyttäjä" and password == "oma_salasanasi":
+        if username == "mattipa" and password == "jdtoro#":
             st.session_state["logged_in"] = True
         else:
             st.error("Väärä käyttäjätunnus tai salasana.")
