@@ -12,13 +12,18 @@ from reportlab.lib.units import mm
 from PIL import Image
 import base64
 
+# TIEDOSTOPOLUT PILVIYMPÄRISTÖÖN (esim. Streamlit Cloud)
+TMPDIR = os.environ.get("TMPDIR", "/tmp")
+KONEET_TIEDOSTO = os.path.join(TMPDIR, "koneet.json")
+EXCEL_TIEDOSTO = os.path.join(TMPDIR, "konehuollot.xlsx")
+
 # --- Kirjautuminen ---
 def login():
     st.title("Kirjaudu sisään")
     username = st.text_input("Käyttäjätunnus")
     password = st.text_input("Salasana", type="password")
     if st.button("Kirjaudu"):
-        if username == "mattipa" and password == "jdtoro":
+        if username == "oma_käyttäjä" and password == "oma_salasanasi":
             st.session_state["logged_in"] = True
         else:
             st.error("Väärä käyttäjätunnus tai salasana.")
@@ -29,9 +34,12 @@ if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
 
 # --- Taustakuva ---
 def taustakuva_local(filename):
-    with open(filename, "rb") as image_file:
-        encoded = base64.b64encode(image_file.read()).decode()
-    return f"data:image/jpg;base64,{encoded}"
+    try:
+        with open(filename, "rb") as image_file:
+            encoded = base64.b64encode(image_file.read()).decode()
+        return f"data:image/jpg;base64,{encoded}"
+    except:
+        return ""
 
 kuva_base64 = taustakuva_local("tausta.png")
 
@@ -66,14 +74,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-st.markdown("""
-    <style>
-    .block-container {
-        padding-top: 0rem !important;
-        margin-top: 0rem !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
+st.markdown("---")
 
 def alusta_koneet_json():
     if not os.path.exists(KONEET_TIEDOSTO):
@@ -130,7 +131,6 @@ def konekohtainen_naytto_nimi_id_samalle_riville(df, huolto_kohteet):
         nonlocal rivinro
         if not koneen_huollot:
             return
-        # Ensimmäinen huolto: koneen nimi + tiedot
         r = {col: koneen_huollot[0][col] for col in columns if col != "Rivi"}
         for kohta in huolto_kohteet:
             val = str(koneen_huollot[0].get(kohta, "--")).strip()
@@ -146,7 +146,6 @@ def konekohtainen_naytto_nimi_id_samalle_riville(df, huolto_kohteet):
         uudet_rivit.append(rivi)
         index_map.append(buffer_idxs[0])
         rivinro += 1
-        # Toinen huolto (jos on): id + tiedot
         if len(koneen_huollot) > 1:
             r2 = {col: koneen_huollot[1][col] for col in columns if col != "Rivi"}
             for kohta in huolto_kohteet:
@@ -164,7 +163,6 @@ def konekohtainen_naytto_nimi_id_samalle_riville(df, huolto_kohteet):
             uudet_rivit.append(rivi2)
             index_map.append(buffer_idxs[1])
             rivinro += 1
-        # Mahdolliset lisähuollot: tyhjä Kone-sarake
         for i in range(2, len(koneen_huollot)):
             r3 = {col: koneen_huollot[i][col] for col in columns if col != "Rivi"}
             for kohta in huolto_kohteet:
@@ -185,14 +183,12 @@ def konekohtainen_naytto_nimi_id_samalle_riville(df, huolto_kohteet):
     for idx, row in df2.iterrows():
         kone = row["Kone"]
         if viime_kone is not None and kone != viime_kone:
-            # Tyhjä rivi
             empty_row = {col: "" for col in columns if col != "Rivi"}
             rivi = {"Rivi": rivinro}
             rivi.update(empty_row)
             uudet_rivit.append(rivi)
             index_map.append(None)
             rivinro += 1
-            # Purkaus
             pure_koneen_huollot()
             koneen_huollot = []
             buffer_idxs = []
@@ -200,23 +196,15 @@ def konekohtainen_naytto_nimi_id_samalle_riville(df, huolto_kohteet):
         viime_id = str(row["ID"]) if "ID" in row else ""
         koneen_huollot.append(row)
         buffer_idxs.append(idx)
-    # Viimeinen kone
     pure_koneen_huollot()
 
     return pd.DataFrame(uudet_rivit, columns=columns), index_map
 
-def taustakuva_local(filename):
-    with open(filename, "rb") as image_file:
-        encoded = base64.b64encode(image_file.read()).decode()
-    return f"data:image/jpg;base64,{encoded}"
-
+# Alustukset
 alusta_koneet_json()
 alusta_excel()
 koneet = lue_koneet()
 df = lue_data()
-
-
-st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 Koneet ja ryhmät"])
 
@@ -227,7 +215,6 @@ with tab1:
     valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="ryhma_selectbox")
     koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
 
-    # Session state tallennettu & kenttien nollaus
     if "tallennettu" not in st.session_state:
         st.session_state.tallennettu = False
 
@@ -352,7 +339,7 @@ with tab2:
     for col in df_naytto.columns:
         df_naytto[col] = df_naytto[col].astype(str)
 
-    st.dataframe(df_naytto)
+    st.dataframe(df_naytto, hide_index=True)
 
     st.markdown("#### Lataa huoltohistoria PDF-tiedostona")
     if st.button("Lataa PDF"):
