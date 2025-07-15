@@ -18,7 +18,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from PIL import Image
-from st_aggrid import AgGrid, GridOptionsBuilder
+#from st_aggrid import AgGrid, GridOptionsBuilder
 
 EXCEL_TIEDOSTO = "konehuollot.xlsx"
 KONEET_TIEDOSTO = "koneet.json"
@@ -278,7 +278,7 @@ with tab1:
 
 
 
-from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
+#from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 
 with tab2:
     st.markdown("### Huoltohistoria")
