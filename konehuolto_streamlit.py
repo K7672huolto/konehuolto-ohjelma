@@ -72,7 +72,7 @@ with tab1:
     ryhma = st.text_input("Ryhmä")
     tunnit = st.text_input("Tunnit/km")
     pvm = st.date_input("Päivämäärä", value=datetime.today())
-    vapaa = st.text_input("Vapaa teksti")
+    vapaa = st.text_input("Huom")
     # Lisää tarvittaessa lisää huoltokohteita
     huoltokohteet = ["MÖ", "HÖ", "AÖ", "IS", "MS", "HS", "R", "PS", "T", "VÖ", "PÖ"]
     huollot = {}
