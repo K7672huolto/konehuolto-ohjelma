@@ -6,10 +6,10 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 from io import BytesIO
 from reportlab.lib.pagesizes import landscape, A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib import colors
-from reportlab.lib.units import mm
+from reportlab.lib.units import inch
 import base64
 import uuid
 
@@ -72,6 +72,22 @@ st.markdown(
 )
 st.markdown("---")
 
+# --- Huoltokohteet: Pitkä nimi <-> lyhenne
+HUOLTOKOHTEET = {
+    "Moottoriöljy": "MÖ",
+    "Hydrauliöljy": "HÖ",
+    "Akseliöljy": "AÖ",
+    "Ilmansuodatin": "IS",
+    "Moottoriöljyn suodatin": "MS",
+    "Hydrauli suodatin": "HS",
+    "Rasvaus": "R",
+    "Polttoaine suodatin": "PS",
+    "Tulpat": "T",
+    "Vaihdelaatikko öljy": "VÖ",
+    "Peräöljy": "PÖ"
+}
+LYHENTEET = list(HUOLTOKOHTEET.values())
+
 # --- Google Sheets API ---
 def get_gsheet_connection(tabname):
     scope = [
@@ -90,11 +106,8 @@ def lue_huollot():
     ws = get_gsheet_connection("Huollot")
     data = ws.get_all_records()
     df = pd.DataFrame(data)
-    # Täydennä pakolliset kentät, jos puuttuu
-    pakolliset = [
-        "ID", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti", "Moottoriöljy", "Hydrauliöljy", "Akseliöljy", "Ilmansuodatin",
-        "Moottoriöljyn suodatin", "Hydrauli suodatin", "Rasvaus", "Polttoaine suodatin", "Tulpat", "Vaihdelaatikko öljy", "Peräöljy"
-    ]
+    # Täydennä puuttuvat kentät (kaikilla lyhenteillä!)
+    pakolliset = ["ID", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
     for kentta in pakolliset:
         if kentta not in df.columns:
             df[kentta] = ""
@@ -143,6 +156,7 @@ koneet_data = ryhmat_ja_koneet(koneet_df) if not koneet_df.empty else {}
 
 tab1, tab2, tab3 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 Koneet ja ryhmät"])
 
+# --- Lisää huolto ---
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
     ryhmat_lista = sorted(list(koneet_data.keys()))
@@ -170,19 +184,14 @@ with tab1:
         with col2:
             pvm = st.date_input("Päivämäärä", value=datetime.today(), key="pvm")
         st.markdown("#### Huoltokohteet")
-        huolto_kohteet = [
-            "Moottoriöljy", "Hydrauliöljy", "Akseliöljy", "Ilmansuodatin",
-            "Moottoriöljyn suodatin", "Hydrauli suodatin", "Rasvaus", "Polttoaine suodatin",
-            "Tulpat", "Vaihdelaatikko öljy", "Peräöljy"
-        ]
         vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
         valinnat = {}
         cols_huolto = st.columns(6)
-        for i, kohta in enumerate(huolto_kohteet):
+        for i, pitkä in enumerate(HUOLTOKOHTEET):
             with cols_huolto[i % 6]:
-                valinnat[kohta] = st.selectbox(
-                    f"{kohta}:", vaihtoehdot,
-                    key=f"valinta_{kohta}",
+                valinnat[pitkä] = st.selectbox(
+                    f"{pitkä}:", vaihtoehdot,
+                    key=f"valinta_{pitkä}",
                     index=0
                 )
         vapaa = st.text_input("Vapaa teksti", key="vapaa")
@@ -198,14 +207,16 @@ with tab1:
                     "Päivämäärä": pvm.strftime("%d.%m.%Y"),
                     "Vapaa teksti": vapaa,
                 }
-                for kohta in huolto_kohteet:
-                    uusi[kohta] = valinnat[kohta]
+                # Täytetään sheettiin vain LYHENTEET
+                for pitkä, lyhenne in HUOLTOKOHTEET.items():
+                    uusi[lyhenne] = valinnat[pitkä]
                 uusi_df = pd.DataFrame([uusi])
                 yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
                 tallenna_huollot(yhdistetty)
                 st.success("Huolto tallennettu!")
                 st.rerun()
 
+# --- Huoltohistoria ---
 with tab2:
     st.header("Huoltohistoria")
     if huolto_df.empty:
@@ -221,21 +232,19 @@ with tab2:
             uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""))
             uusi_vapaa = st.text_input("Vapaa teksti", value=valittu.get("Vapaa teksti", ""))
             uusi_kohta = {}
-            for kohta in [
-                "Moottoriöljy", "Hydrauliöljy", "Akseliöljy", "Ilmansuodatin",
-                "Moottoriöljyn suodatin", "Hydrauli suodatin", "Rasvaus", "Polttoaine suodatin",
-                "Tulpat", "Vaihdelaatikko öljy", "Peräöljy"
-            ]:
-                uusi_kohta[kohta] = st.selectbox(
-                    kohta, ["--", "Vaihd", "Tark", "OK", "Muu"], index=["--", "Vaihd", "Tark", "OK", "Muu"].index(valittu.get(kohta, "--")), key=f"edit_{kohta}"
+            for pitkä, lyhenne in HUOLTOKOHTEET.items():
+                uusi_kohta[lyhenne] = st.selectbox(
+                    pitkä, ["--", "Vaihd", "Tark", "OK", "Muu"], 
+                    index=["--", "Vaihd", "Tark", "OK", "Muu"].index(valittu.get(lyhenne, "--")), 
+                    key=f"edit_{lyhenne}"
                 )
             if st.button("Tallenna muutokset"):
                 idx = df[df["ID"].astype(str) == muokattava_id].index[0]
                 df.at[idx, "Tunnit"] = uusi_tunnit
                 df.at[idx, "Päivämäärä"] = uusi_pvm
                 df.at[idx, "Vapaa teksti"] = uusi_vapaa
-                for kohta in uusi_kohta:
-                    df.at[idx, kohta] = uusi_kohta[kohta]
+                for lyhenne in uusi_kohta:
+                    df.at[idx, lyhenne] = uusi_kohta[lyhenne]
                 tallenna_huollot(df)
                 st.success("Tallennettu!")
                 st.rerun()
@@ -245,88 +254,77 @@ with tab2:
                 st.success("Huolto poistettu!")
                 st.rerun()
         st.markdown("#### Lataa huoltohistoria PDF-tiedostona")
+        # PDF-napin koodi:
+        def tee_pdf_data(df):
+            otsikot = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+            data = [otsikot]
+            koneet = df["Kone"].unique()
+            for kone in koneet:
+                r_kone = df[df["Kone"] == kone]
+                eka = True
+                for idx, row in r_kone.iterrows():
+                    rivi = [
+                        kone if eka else (row["ID"] if not eka else ""),
+                        row.get("Ryhmä", ""),
+                        row.get("Tunnit", ""),
+                        row.get("Päivämäärä", ""),
+                        row.get("Vapaa teksti", ""),
+                    ] + [row.get(k, "") for k in LYHENTEET]
+                    rivi = [("✔" if v == "OK" else v) for v in rivi]
+                    data.append(rivi)
+                    eka = False
+                # Koneen jälkeen lyhennerivi
+                data.append([""] * (len(otsikot) - len(LYHENTEET)) + LYHENTEET)
+            return data
+
+        def lataa_pdf(df):
+            buffer = BytesIO()
+            vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
+            doc = SimpleDocTemplate(
+                buffer, pagesize=landscape(A4),
+                rightMargin=0.5 * inch, leftMargin=0.5 * inch,
+                topMargin=0.7 * inch, bottomMargin=0.5 * inch
+            )
+            data = tee_pdf_data(df)
+            def pdf_rivi(rivi):
+                uusi = []
+                for cell in rivi:
+                    if str(cell) == "✔":
+                        uusi.append(Paragraph('<font color="green">✔</font>', vihrea))
+                    else:
+                        uusi.append(str(cell) if cell is not None else "")
+                return uusi
+            table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
+            table = Table(table_data, repeatRows=1)
+            table_styles = [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]
+            # Koneen nimi boldina PDF:ssä jos molemmassa ekasarakkeessa sisältöä
+            for r_idx, row in enumerate(table_data[1:], start=1):
+                if str(row[0]).strip() and str(row[1]).strip():
+                    table_styles.append(('FONTNAME', (0, r_idx), (0, r_idx), 'Helvetica-Bold'))
+            table.setStyle(TableStyle(table_styles))
+            doc.build([table])
+            buffer.seek(0)
+            return buffer
+
         if st.button("Lataa PDF"):
-            st.info("PDF-lataus toimii kuten ennen! (Voit lisätä PDF-koodin tähän.)")
-from io import BytesIO
-from reportlab.lib.pagesizes import landscape, A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib import colors
-from reportlab.lib.units import inch
+            pdfdata = lataa_pdf(df)
+            st.download_button(
+                label="Lataa PDF-tiedosto",
+                data=pdfdata,
+                file_name="huoltohistoria.pdf",
+                mime="application/pdf"
+            )
 
-def tee_pdf_data(df):
-    LYHENTEET = ["MÖ", "HÖ", "AÖ", "IS", "MS", "HS", "R", "PS", "T", "VÖ", "PÖ"]
-    otsikot = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
-    data = [otsikot]
-    koneet = df["Kone"].unique()
-    for kone in koneet:
-        r_kone = df[df["Kone"] == kone]
-        eka = True
-        for idx, row in r_kone.iterrows():
-            rivi = [
-                kone if eka else (row["ID"] if not eka else ""),
-                row.get("Ryhmä", ""),
-                row.get("Tunnit", ""),
-                row.get("Päivämäärä", ""),
-                row.get("Vapaa teksti", ""),
-            ] + [row.get(k, "") for k in LYHENTEET]
-            rivi = [("✔" if v == "OK" else v) for v in rivi]
-            data.append(rivi)
-            eka = False
-        # Koneen jälkeen lyhennerivi
-        data.append([""] * (len(otsikot) - len(LYHENTEET)) + LYHENTEET)
-    return data
-
-def lataa_pdf(df):
-    buffer = BytesIO()
-    vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
-    doc = SimpleDocTemplate(
-        buffer, pagesize=landscape(A4),
-        rightMargin=0.5 * inch, leftMargin=0.5 * inch,
-        topMargin=0.7 * inch, bottomMargin=0.5 * inch
-    )
-    data = tee_pdf_data(df)
-    def pdf_rivi(rivi):
-        uusi = []
-        for cell in rivi:
-            if str(cell) == "✔":
-                uusi.append(Paragraph('<font color="green">✔</font>', vihrea))
-            else:
-                uusi.append(str(cell) if cell is not None else "")
-        return uusi
-    table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
-    table = Table(table_data, repeatRows=1)
-    table_styles = [
-        ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]
-    # Koneen nimi boldina (PDF) jos molemmassa ekasarakkeessa sisältöä
-    for r_idx, row in enumerate(table_data[1:], start=1):
-        if str(row[0]).strip() and str(row[1]).strip():
-            table_styles.append(('FONTNAME', (0, r_idx), (0, r_idx), 'Helvetica-Bold'))
-    table.setStyle(TableStyle(table_styles))
-    doc.build([table])
-    buffer.seek(0)
-    return buffer
-
-# Lisää tämä "Huoltohistoria" tab2-osioon (esim. dataframe-näytön ja muokkauslomakkeen jälkeen):
-if st.button("Lataa PDF"):
-    pdfdata = lataa_pdf(df)
-    st.download_button(
-        label="Lataa PDF-tiedosto",
-        data=pdfdata,
-        file_name="huoltohistoria.pdf",
-        mime="application/pdf"
-    )
-
-            
-
+# --- Koneiden ja ryhmien hallinta ---
 with tab3:
     st.header("Koneiden ja ryhmien hallinta")
     uusi_ryhma = st.selectbox("Ryhmän valinta tai luonti", list(koneet_data.keys())+["Uusi ryhmä"], key="uusi_ryhma")
@@ -359,15 +357,4 @@ with tab3:
     else:
         st.info("Ei ryhmiä.")
 
-    st.markdown("---")
-    st.subheader("Ryhmän koneet")
-    if not koneet_df.empty:
-        ryhma_valinta = st.selectbox("Näytä koneet ryhmästä", list(koneet_data.keys()), key="ryhmat_lista_nakyma")
-        koneet_listattavaan = koneet_df[koneet_df["Ryhmä"] == ryhma_valinta]
-        if not koneet_listattavaan.empty:
-            koneet_df_nakyma = koneet_listattavaan[["Kone", "ID"]]
-            st.table(koneet_df_nakyma)
-        else:
-            st.info("Ryhmässä ei koneita.")
-    else:
-        st.info("Ei ryhmiä.")
+    st.markdown("---
