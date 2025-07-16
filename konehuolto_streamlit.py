@@ -83,7 +83,7 @@ def get_gsheet_connection(tabname):
     credentials_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDENTIALS"])
     creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
     client = gspread.authorize(creds)
-    sheet = client.open(st.secrets["Konehuollot Data"])
+    sheet = client.open(st.secrets["Huollot Data"])
     return sheet.worksheet(tabname)
 
 def lue_huollot():
