@@ -100,7 +100,7 @@ def get_gsheet_connection(tabname):
     creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
     client = gspread.authorize(creds)
     sheet = client.open(st.secrets["SHEET_NIMI"])
-ws = sheet.worksheet("Huollot")
+   ws = sheet.worksheet("Huollot")
 
 def lue_huollot():
     ws = get_gsheet_connection("Huollot")
