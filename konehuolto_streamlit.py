@@ -101,6 +101,7 @@ def get_gsheet_connection():
     client = gspread.authorize(creds)
     sheet = client.open(st.secrets["SHEET_NIMI"])
     ws = sheet.worksheet("Huollot")
+    return ws
 
 def lue_huollot():
     ws = get_gsheet_connection("Huollot")
