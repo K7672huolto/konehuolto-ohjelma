@@ -119,20 +119,18 @@ def tallenna_huollot(df):
     if not df.empty:
         ws.update([df.columns.values.tolist()] + df.values.tolist())
 
-def lue_koneet():
-    ws = get_gsheet_connection("Koneet")
-    data = ws.get_all_records()
-    df = pd.DataFrame(data)
-    for kentta in ["Kone", "ID", "Ryhmä"]:
-        if kentta not in df.columns:
-            df[kentta] = ""
-    return df
-
-def tallenna_koneet(df):
-    ws = get_gsheet_connection("Koneet")
-    ws.clear()
-    if not df.empty:
-        ws.update([df.columns.values.tolist()] + df.values.tolist())
+def get_gsheet_connection(tabname):
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    credentials_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDENTIALS"])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+    client = gspread.authorize(creds)
+    sheet = client.open(st.secrets["SHEET_NIMI"])
+    return sheet.worksheet(tabname)
 
 def ryhmat_ja_koneet(df):
     d = {}
