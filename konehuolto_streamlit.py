@@ -357,4 +357,4 @@ with tab3:
     else:
         st.info("Ei ryhmiä.")
 
-    st.markdown("---
+    st.markdown("---")
