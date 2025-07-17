@@ -89,7 +89,7 @@ HUOLTOKOHTEET = {
 LYHENTEET = list(HUOLTOKOHTEET.values())
 
 # --- Google Sheets API ---
-def get_gsheet_connection(tabname):
+def get_gsheet_connection():
     scope = [
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/spreadsheets",
@@ -100,7 +100,7 @@ def get_gsheet_connection(tabname):
     creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
     client = gspread.authorize(creds)
     sheet = client.open(st.secrets["SHEET_NIMI"])
-    return sheet.worksheet(tabname)
+    ws = sheet.worksheet("Huollot")
 
 def lue_huollot():
     ws = get_gsheet_connection("Huollot")
