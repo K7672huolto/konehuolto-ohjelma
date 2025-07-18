@@ -373,6 +373,11 @@ with tab2:
             return buffer
 
         if st.button("Lataa PDF"):
-            pdfdata = lataa_pdf(df)
-            st.download_button(
-                label="
+    pdfdata = lataa_pdf(df)
+    st.download_button(
+        label="Lataa PDF-tiedosto",
+        data=pdfdata,
+        file_name="huoltohistoria.pdf",
+        mime="application/pdf"
+    )
+
