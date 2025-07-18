@@ -28,7 +28,7 @@ if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     login()
     st.stop()
 
-# --- Taustakuva ---
+# --- Taustakuva (valinnainen) ---
 def taustakuva_local(filename):
     try:
         with open(filename, "rb") as image_file:
@@ -38,7 +38,6 @@ def taustakuva_local(filename):
         return ""
 
 kuva_base64 = taustakuva_local("tausta.png")
-
 st.set_page_config(page_title="Konehuolto", layout="wide")
 st.markdown("""
     <style>
@@ -49,30 +48,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown(
-    f"""
-    <div style="
-        background-image: url('{kuva_base64}');
-        background-size: cover;
-        background-position: center;
-        padding: 80px 0 80px 0;
-        margin-bottom: 0.2em;
-        text-align: center;
-        width: 100vw;
-        position: relative;
-        left: 50%;
-        right: 50%;
-        margin-left: -50vw;
-        margin-right: -50vw;
-    ">
-        <h2 style="color:#fff; text-shadow:2px 2px 6px #333;">Konehuolto-ohjelma (selainversio)</h2>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-st.markdown("---")
-
-# --- Huoltokohteet: Pitkä nimi <-> lyhenne
+# --- Huoltokohteet
 HUOLTOKOHTEET = {
     "Moottoriöljy": "MÖ",
     "Hydrauliöljy": "HÖ",
@@ -106,7 +82,6 @@ def lue_huollot():
     ws = get_gsheet_connection("Huollot")
     data = ws.get_all_records()
     df = pd.DataFrame(data)
-    # Täydennä puuttuvat kentät (kaikilla lyhenteillä!)
     pakolliset = ["ID", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
     for kentta in pakolliset:
         if kentta not in df.columns:
@@ -140,6 +115,7 @@ def ryhmat_ja_koneet(df):
         d.setdefault(r["Ryhmä"], []).append({"nimi": r["Kone"], "id": r["ID"]})
     return d
 
+# --- Luku Sheetistä
 try:
     huolto_df = lue_huollot()
 except Exception as e:
@@ -189,7 +165,7 @@ with tab1:
         cols_huolto = st.columns(6)
         for i, pitkä in enumerate(HUOLTOKOHTEET):
             with cols_huolto[i % 6]:
-                valinnat[pitkä] = st.selectbox(
+                valinnat[HUOLTOKOHTEET[pitkä]] = st.selectbox(
                     f"{pitkä}:", vaihtoehdot,
                     key=f"valinta_{pitkä}",
                     index=0
@@ -202,21 +178,21 @@ with tab1:
                 uusi = {
                     "ID": str(uuid.uuid4())[:8],
                     "Kone": valittu_kone_nimi,
+                    "ID-numero": kone_id,  # Ei Sheetissä, mutta voidaan hyödyntää!
                     "Ryhmä": valittu_ryhma,
                     "Tunnit": kayttotunnit,
                     "Päivämäärä": pvm.strftime("%d.%m.%Y"),
                     "Vapaa teksti": vapaa,
                 }
-                # Täytetään sheettiin vain LYHENTEET
-                for pitkä, lyhenne in HUOLTOKOHTEET.items():
-                    uusi[lyhenne] = valinnat[pitkä]
+                for lyhenne in LYHENTEET:
+                    uusi[lyhenne] = valinnat[lyhenne]
                 uusi_df = pd.DataFrame([uusi])
                 yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
                 tallenna_huollot(yhdistetty)
                 st.success("Huolto tallennettu!")
                 st.rerun()
 
-# --- Huoltohistoria ---
+# --- Huoltohistoria + Muokkaus + PDF ---
 with tab2:
     st.header("Huoltohistoria")
     if huolto_df.empty:
@@ -224,7 +200,47 @@ with tab2:
     else:
         df = huolto_df.copy()
         df = df.reset_index(drop=True)
-        st.dataframe(df, hide_index=True)
+
+        # ✔-LOGIIKKA
+        def fmt_ok(x):
+            return "✔" if str(x).strip().upper() == "OK" else x
+
+        def esikatselu_df(df):
+            rows = []
+            for kone in df["Kone"].unique():
+                kone_df = df[df["Kone"] == kone]
+                eka = True
+                for idx, row in kone_df.iterrows():
+                    if eka:
+                        rivi = [
+                            kone,
+                            row.get("Ryhmä", ""),
+                            row.get("Tunnit", ""),
+                            row.get("Päivämäärä", ""),
+                            row.get("Vapaa teksti", ""),
+                        ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
+                        rows.append(rivi)
+                        id_rivi = [
+                            row.get("ID", ""), "", "", "", ""
+                        ] + ["" for k in LYHENTEET]
+                        rows.append(id_rivi)
+                        eka = False
+                    else:
+                        rivi = [
+                            "",
+                            row.get("Ryhmä", ""),
+                            row.get("Tunnit", ""),
+                            row.get("Päivämäärä", ""),
+                            row.get("Vapaa teksti", ""),
+                        ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
+                        rows.append(rivi)
+            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+            return pd.DataFrame(rows, columns=columns)
+
+        df_naytto = esikatselu_df(df)
+        st.dataframe(df_naytto, hide_index=True)
+
+        # --- Huoltojen muokkaus ja korjaus ---
         muokattava_id = st.selectbox("Valitse muokattava huolto", [""] + df["ID"].astype(str).tolist())
         if muokattava_id:
             valittu = df[df["ID"].astype(str) == muokattava_id].iloc[0]
@@ -233,9 +249,16 @@ with tab2:
             uusi_vapaa = st.text_input("Vapaa teksti", value=valittu.get("Vapaa teksti", ""))
             uusi_kohta = {}
             for pitkä, lyhenne in HUOLTOKOHTEET.items():
+                vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
+                # Normalisoidaan arvo virheiden välttämiseksi
+                arvo = str(valittu.get(lyhenne, "--")).strip().upper()
+                vaihtoehdot_upper = [v.upper() for v in vaihtoehdot]
+                if arvo not in vaihtoehdot_upper:
+                    arvo = "--"
                 uusi_kohta[lyhenne] = st.selectbox(
-                    pitkä, ["--", "Vaihd", "Tark", "OK", "Muu"], 
-                    index=["--", "Vaihd", "Tark", "OK", "Muu"].index(valittu.get(lyhenne, "--")), 
+                    pitkä,
+                    vaihtoehdot,
+                    index=vaihtoehdot_upper.index(arvo),
                     key=f"edit_{lyhenne}"
                 )
             if st.button("Tallenna muutokset"):
@@ -253,29 +276,39 @@ with tab2:
                 tallenna_huollot(df)
                 st.success("Huolto poistettu!")
                 st.rerun()
-        st.markdown("#### Lataa huoltohistoria PDF-tiedostona")
-        # PDF-napin koodi:
+
+        # --- PDF-nappi ---
         def tee_pdf_data(df):
-            otsikot = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
-            data = [otsikot]
-            koneet = df["Kone"].unique()
-            for kone in koneet:
-                r_kone = df[df["Kone"] == kone]
+            rows = []
+            for kone in df["Kone"].unique():
+                kone_df = df[df["Kone"] == kone]
                 eka = True
-                for idx, row in r_kone.iterrows():
-                    rivi = [
-                        kone if eka else (row["ID"] if not eka else ""),
-                        row.get("Ryhmä", ""),
-                        row.get("Tunnit", ""),
-                        row.get("Päivämäärä", ""),
-                        row.get("Vapaa teksti", ""),
-                    ] + [row.get(k, "") for k in LYHENTEET]
-                    rivi = [("✔" if v == "OK" else v) for v in rivi]
-                    data.append(rivi)
-                    eka = False
-                # Koneen jälkeen lyhennerivi
-                data.append([""] * (len(otsikot) - len(LYHENTEET)) + LYHENTEET)
-            return data
+                for idx, row in kone_df.iterrows():
+                    if eka:
+                        rivi = [
+                            kone,
+                            row.get("Ryhmä", ""),
+                            row.get("Tunnit", ""),
+                            row.get("Päivämäärä", ""),
+                            row.get("Vapaa teksti", ""),
+                        ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
+                        rows.append(rivi)
+                        id_rivi = [
+                            row.get("ID", ""), "", "", "", ""
+                        ] + ["" for k in LYHENTEET]
+                        rows.append(id_rivi)
+                        eka = False
+                    else:
+                        rivi = [
+                            "",
+                            row.get("Ryhmä", ""),
+                            row.get("Tunnit", ""),
+                            row.get("Päivämäärä", ""),
+                            row.get("Vapaa teksti", ""),
+                        ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
+                        rows.append(rivi)
+            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+            return [columns] + rows
 
         def lataa_pdf(df):
             buffer = BytesIO()
@@ -289,13 +322,22 @@ with tab2:
             def pdf_rivi(rivi):
                 uusi = []
                 for cell in rivi:
-                    if str(cell) == "✔":
+                    if str(cell).strip().upper() == "✔":
+                        uusi.append(Paragraph('<font color="green">✔</font>', vihrea))
+                    elif str(cell).strip().upper() == "OK":
                         uusi.append(Paragraph('<font color="green">✔</font>', vihrea))
                     else:
                         uusi.append(str(cell) if cell is not None else "")
                 return uusi
             table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
-            table = Table(table_data, repeatRows=1)
+
+            # ***Tässä määritellään sarakeleveys!***
+            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+            sarakeleveys = [110, 80, 60, 80, 140] + [30] * len(LYHENTEET)
+
+            table = Table(table_data, repeatRows=1, colWidths=sarakeleveys)
+
+            # (Tyyliasetukset ja build kuten ennen)
             table_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -306,7 +348,6 @@ with tab2:
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ]
-            # Koneen nimi boldina PDF:ssä jos molemmassa ekasarakkeessa sisältöä
             for r_idx, row in enumerate(table_data[1:], start=1):
                 if str(row[0]).strip() and str(row[1]).strip():
                     table_styles.append(('FONTNAME', (0, r_idx), (0, r_idx), 'Helvetica-Bold'))
@@ -314,6 +355,7 @@ with tab2:
             doc.build([table])
             buffer.seek(0)
             return buffer
+
 
         if st.button("Lataa PDF"):
             pdfdata = lataa_pdf(df)
