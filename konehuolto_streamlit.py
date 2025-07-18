@@ -330,14 +330,7 @@ with tab2:
                         uusi.append(str(cell) if cell is not None else "")
                 return uusi
             table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
-
-            # ***Tässä määritellään sarakeleveys!***
-            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
-            sarakeleveys = [110, 80, 60, 80, 140] + [30] * len(LYHENTEET)
-
-            table = Table(table_data, repeatRows=1, colWidths=sarakeleveys)
-
-            # (Tyyliasetukset ja build kuten ennen)
+            table = Table(table_data, repeatRows=1)
             table_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -355,7 +348,6 @@ with tab2:
             doc.build([table])
             buffer.seek(0)
             return buffer
-
 
         if st.button("Lataa PDF"):
             pdfdata = lataa_pdf(df)
