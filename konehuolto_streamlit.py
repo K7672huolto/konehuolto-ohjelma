@@ -28,7 +28,7 @@ if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     login()
     st.stop()
 
-# --- Taustakuva (valinnainen) ---
+# --- Taustakuva (banneri) ---
 def taustakuva_local(filename):
     try:
         with open(filename, "rb") as image_file:
@@ -47,6 +47,28 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+st.markdown(
+    f"""
+    <div style="
+        background-image: url('{kuva_base64}');
+        background-size: cover;
+        background-position: center;
+        padding: 60px 0 60px 0;
+        margin-bottom: 0.2em;
+        text-align: center;
+        width: 100vw;
+        position: relative;
+        left: 50%;
+        right: 50%;
+        margin-left: -50vw;
+        margin-right: -50vw;
+    ">
+        <h2 style="color:#fff; text-shadow:2px 2px 6px #333;">Konehuolto-ohjelma (selainversio)</h2>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+st.markdown("---")
 
 # --- Huoltokohteet
 HUOLTOKOHTEET = {
@@ -79,9 +101,13 @@ def get_gsheet_connection(tabname):
     return sheet.worksheet(tabname)
 
 def lue_huollot():
-    ws = get_gsheet_connection("Huollot")
-    data = ws.get_all_records()
-    df = pd.DataFrame(data)
+    try:
+        ws = get_gsheet_connection("Huollot")
+        data = ws.get_all_records()
+        df = pd.DataFrame(data)
+    except Exception as e:
+        st.error(f"Huoltojen Google Sheet puuttuu tai ei lukuoikeuksia. ({e})")
+        df = pd.DataFrame()
     pakolliset = ["ID", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
     for kentta in pakolliset:
         if kentta not in df.columns:
@@ -95,9 +121,13 @@ def tallenna_huollot(df):
         ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 def lue_koneet():
-    ws = get_gsheet_connection("Koneet")
-    data = ws.get_all_records()
-    df = pd.DataFrame(data)
+    try:
+        ws = get_gsheet_connection("Koneet")
+        data = ws.get_all_records()
+        df = pd.DataFrame(data)
+    except Exception as e:
+        st.error(f"Koneiden Google Sheet puuttuu tai ei lukuoikeuksia. ({e})")
+        df = pd.DataFrame()
     for kentta in ["Kone", "ID", "Ryhmä"]:
         if kentta not in df.columns:
             df[kentta] = ""
@@ -115,19 +145,8 @@ def ryhmat_ja_koneet(df):
         d.setdefault(r["Ryhmä"], []).append({"nimi": r["Kone"], "id": r["ID"]})
     return d
 
-# --- Luku Sheetistä
-try:
-    huolto_df = lue_huollot()
-except Exception as e:
-    st.error("Huoltojen Google Sheet puuttuu tai ei lukuoikeuksia.")
-    huolto_df = pd.DataFrame()
-
-try:
-    koneet_df = lue_koneet()
-except Exception as e:
-    st.error("Koneiden Google Sheet puuttuu tai ei lukuoikeuksia.")
-    koneet_df = pd.DataFrame()
-
+huolto_df = lue_huollot()
+koneet_df = lue_koneet()
 koneet_data = ryhmat_ja_koneet(koneet_df) if not koneet_df.empty else {}
 
 tab1, tab2, tab3 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 Koneet ja ryhmät"])
@@ -136,61 +155,64 @@ tab1, tab2, tab3 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 K
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
     ryhmat_lista = sorted(list(koneet_data.keys()))
-    valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="ryhma_selectbox")
-    koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
-    if koneet_ryhmaan:
-        koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-        koneet_df2["valinta"] = koneet_df2["nimi"] + " (ID: " + koneet_df2["id"].astype(str) + ")"
-        kone_valinta = st.radio(
-            "Valitse kone:",
-            koneet_df2["valinta"].tolist(),
-            key="konevalinta_radio",
-            index=0 if len(koneet_df2) > 0 else None
-        )
-        valittu_kone_nimi = kone_valinta.split(" (ID:")[0]
-        kone_id = koneet_df2[koneet_df2["nimi"] == valittu_kone_nimi]["id"].values[0]
+    if not ryhmat_lista:
+        st.info("Ei yhtään koneryhmää vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
     else:
-        st.info("Valitussa ryhmässä ei ole koneita.")
-        kone_id = ""
-        valittu_kone_nimi = ""
-    if kone_id:
-        col1, col2 = st.columns(2)
-        with col1:
-            kayttotunnit = st.text_input("Tunnit/km", key="kayttotunnit")
-        with col2:
-            pvm = st.date_input("Päivämäärä", value=datetime.today(), key="pvm")
-        st.markdown("#### Huoltokohteet")
-        vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
-        valinnat = {}
-        cols_huolto = st.columns(6)
-        for i, pitkä in enumerate(HUOLTOKOHTEET):
-            with cols_huolto[i % 6]:
-                valinnat[HUOLTOKOHTEET[pitkä]] = st.selectbox(
-                    f"{pitkä}:", vaihtoehdot,
-                    key=f"valinta_{pitkä}",
-                    index=0
-                )
-        vapaa = st.text_input("Vapaa teksti", key="vapaa")
-        if st.button("Tallenna huolto"):
-            if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
-                st.warning("Täytä kaikki kentät!")
-            else:
-                uusi = {
-                    "ID": str(uuid.uuid4())[:8],
-                    "Kone": valittu_kone_nimi,
-                    "ID-numero": kone_id,  # Ei Sheetissä, mutta voidaan hyödyntää!
-                    "Ryhmä": valittu_ryhma,
-                    "Tunnit": kayttotunnit,
-                    "Päivämäärä": pvm.strftime("%d.%m.%Y"),
-                    "Vapaa teksti": vapaa,
-                }
-                for lyhenne in LYHENTEET:
-                    uusi[lyhenne] = valinnat[lyhenne]
-                uusi_df = pd.DataFrame([uusi])
-                yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
-                tallenna_huollot(yhdistetty)
-                st.success("Huolto tallennettu!")
-                st.rerun()
+        valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="ryhma_selectbox")
+        koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
+        if koneet_ryhmaan:
+            koneet_df2 = pd.DataFrame(koneet_ryhmaan)
+            koneet_df2["valinta"] = koneet_df2["nimi"] + " (ID: " + koneet_df2["id"].astype(str) + ")"
+            kone_valinta = st.radio(
+                "Valitse kone:",
+                koneet_df2["valinta"].tolist(),
+                key="konevalinta_radio",
+                index=0 if len(koneet_df2) > 0 else None
+            )
+            valittu_kone_nimi = kone_valinta.split(" (ID:")[0]
+            kone_id = koneet_df2[koneet_df2["nimi"] == valittu_kone_nimi]["id"].values[0]
+        else:
+            st.info("Valitussa ryhmässä ei ole koneita.")
+            kone_id = ""
+            valittu_kone_nimi = ""
+        if kone_id:
+            col1, col2 = st.columns(2)
+            with col1:
+                kayttotunnit = st.text_input("Tunnit/km", key="kayttotunnit")
+            with col2:
+                pvm = st.date_input("Päivämäärä", value=datetime.today(), key="pvm")
+            st.markdown("#### Huoltokohteet")
+            vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
+            valinnat = {}
+            cols_huolto = st.columns(6)
+            for i, pitkä in enumerate(HUOLTOKOHTEET):
+                with cols_huolto[i % 6]:
+                    valinnat[HUOLTOKOHTEET[pitkä]] = st.selectbox(
+                        f"{pitkä}:", vaihtoehdot,
+                        key=f"valinta_{pitkä}",
+                        index=0
+                    )
+            vapaa = st.text_input("Vapaa teksti", key="vapaa")
+            if st.button("Tallenna huolto"):
+                if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
+                    st.warning("Täytä kaikki kentät!")
+                else:
+                    uusi = {
+                        "ID": str(uuid.uuid4())[:8],
+                        "Kone": valittu_kone_nimi,
+                        "ID-numero": kone_id,  # Ei Sheetissä, mutta voidaan hyödyntää!
+                        "Ryhmä": valittu_ryhma,
+                        "Tunnit": kayttotunnit,
+                        "Päivämäärä": pvm.strftime("%d.%m.%Y"),
+                        "Vapaa teksti": vapaa,
+                    }
+                    for lyhenne in LYHENTEET:
+                        uusi[lyhenne] = valinnat[lyhenne]
+                    uusi_df = pd.DataFrame([uusi])
+                    yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
+                    tallenna_huollot(yhdistetty)
+                    st.success("Huolto tallennettu!")
+                    st.rerun()
 
 # --- Huoltohistoria + Muokkaus + PDF ---
 with tab2:
@@ -250,7 +272,6 @@ with tab2:
             uusi_kohta = {}
             for pitkä, lyhenne in HUOLTOKOHTEET.items():
                 vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
-                # Normalisoidaan arvo virheiden välttämiseksi
                 arvo = str(valittu.get(lyhenne, "--")).strip().upper()
                 vaihtoehdot_upper = [v.upper() for v in vaihtoehdot]
                 if arvo not in vaihtoehdot_upper:
@@ -322,15 +343,17 @@ with tab2:
             def pdf_rivi(rivi):
                 uusi = []
                 for cell in rivi:
-                    if str(cell).strip().upper() == "✔":
-                        uusi.append(Paragraph('<font color="green">✔</font>', vihrea))
-                    elif str(cell).strip().upper() == "OK":
+                    # ✔ myös PDF:ään
+                    if str(cell).strip().upper() in ["✔", "OK"]:
                         uusi.append(Paragraph('<font color="green">✔</font>', vihrea))
                     else:
                         uusi.append(str(cell) if cell is not None else "")
                 return uusi
             table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
-            table = Table(table_data, repeatRows=1)
+            # Säädä sarakeleveys tässä!
+            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+            sarakeleveys = [110, 80, 60, 80, 140] + [32 for _ in LYHENTEET]
+            table = Table(table_data, repeatRows=1, colWidths=sarakeleveys)
             table_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -352,43 +375,4 @@ with tab2:
         if st.button("Lataa PDF"):
             pdfdata = lataa_pdf(df)
             st.download_button(
-                label="Lataa PDF-tiedosto",
-                data=pdfdata,
-                file_name="huoltohistoria.pdf",
-                mime="application/pdf"
-            )
-
-# --- Koneiden ja ryhmien hallinta ---
-with tab3:
-    st.header("Koneiden ja ryhmien hallinta")
-    uusi_ryhma = st.selectbox("Ryhmän valinta tai luonti", list(koneet_data.keys())+["Uusi ryhmä"], key="uusi_ryhma")
-    kaytettava_ryhma = st.text_input("Uuden ryhmän nimi") if uusi_ryhma=="Uusi ryhmä" else uusi_ryhma
-    uusi_nimi = st.text_input("Koneen nimi")
-    uusi_id = st.text_input("Koneen ID-numero")
-    if st.button("Lisää kone"):
-        if kaytettava_ryhma and uusi_nimi and uusi_id:
-            uusi = pd.DataFrame([{"Kone": uusi_nimi, "ID": uusi_id, "Ryhmä": kaytettava_ryhma}])
-            uusi_koneet_df = pd.concat([koneet_df, uusi], ignore_index=True)
-            tallenna_koneet(uusi_koneet_df)
-            st.success(f"Kone {uusi_nimi} lisätty ryhmään {kaytettava_ryhma}")
-            st.rerun()
-        else:
-            st.warning("Täytä kaikki kentät.")
-
-    st.subheader("Poista kone")
-    if not koneet_df.empty:
-        poisto_ryhma = st.selectbox("Valitse ryhmä (poistoa varten)", list(koneet_data.keys()), key="poistoryhma")
-        koneet_poisto = koneet_df[koneet_df["Ryhmä"] == poisto_ryhma]
-        if not koneet_poisto.empty:
-            poisto_nimi = st.selectbox("Valitse kone", koneet_poisto["Kone"].tolist(), key="poistokone")
-            if st.button("Poista kone"):
-                uusi_koneet_df = koneet_df[~((koneet_df["Ryhmä"] == poisto_ryhma) & (koneet_df["Kone"] == poisto_nimi))]
-                tallenna_koneet(uusi_koneet_df)
-                st.success(f"Kone {poisto_nimi} poistettu.")
-                st.rerun()
-        else:
-            st.info("Valitussa ryhmässä ei koneita.")
-    else:
-        st.info("Ei ryhmiä.")
-
-    st.markdown("---")
+                label="
