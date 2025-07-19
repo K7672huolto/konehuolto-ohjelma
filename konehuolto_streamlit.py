@@ -14,8 +14,6 @@ import base64
 import uuid
 
 # --- Kirjautuminen ---
-import streamlit as st
-
 def login():
     st.title("Kirjaudu sisään")
     username = st.text_input("Käyttäjätunnus")
@@ -29,7 +27,6 @@ def login():
 if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     login()
     st.stop()
- )
 
 # --- Taustakuva (banneri) ---
 def taustakuva_local(filename):
