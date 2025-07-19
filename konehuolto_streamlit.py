@@ -14,6 +14,8 @@ import base64
 import uuid
 
 # --- Kirjautuminen ---
+import streamlit as st
+
 def login():
     st.title("Kirjaudu sisään")
     username = st.text_input("Käyttäjätunnus")
@@ -21,14 +23,13 @@ def login():
     if st.button("Kirjaudu"):
         if username == "mattipa" and password == "jdtoro#":
             st.session_state["logged_in"] = True
-            st.experimental_rerun()   # <- tämä ratkaisee ongelman!
         else:
             st.error("Väärä käyttäjätunnus tai salasana.")
-
 
 if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     login()
     st.stop()
+ )
 
 # --- Taustakuva (banneri) ---
 def taustakuva_local(filename):
