@@ -21,8 +21,10 @@ def login():
     if st.button("Kirjaudu"):
         if username == "mattipa" and password == "jdtoro#":
             st.session_state["logged_in"] = True
+            st.experimental_rerun()   # <- tämä ratkaisee ongelman!
         else:
             st.error("Väärä käyttäjätunnus tai salasana.")
+
 
 if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     login()
