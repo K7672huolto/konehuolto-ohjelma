@@ -165,6 +165,7 @@ with tab1:
         koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
+            # Koneen nimi ensin, sitten ID (sulkeissa)
             koneet_df2["valinta"] = koneet_df2["nimi"] + " (ID: " + koneet_df2["id"].astype(str) + ")"
             kone_valinta = st.radio(
                 "Valitse kone:",
@@ -184,7 +185,7 @@ with tab1:
                 kayttotunnit = st.text_input("Tunnit/km", key="kayttotunnit")
             with col2:
                 pvm = st.date_input("Päivämäärä", value=datetime.today(), key="pvm")
-            st.markdown("#### Huoltokohteet (valinnainen)")
+            st.markdown("#### Huoltokohteet")
             vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
             valinnat = {}
             cols_huolto = st.columns(6)
@@ -196,15 +197,15 @@ with tab1:
                         index=0
                     )
             vapaa = st.text_input("Vapaa teksti", key="vapaa")
-            # *** VAIN pääkentät vaaditaan! ***
-            if st.button("Tallenna huolto"):
+            if st.button("Tallenna huolto", key="tallenna_huolto_tab1"):
+                # HUOM: Huoltokohteet voivat olla kaikki "--"
                 if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
-                    st.warning("Täytä kaikki pakolliset kentät: ryhmä, kone, tunnit ja päivämäärä!")
+                    st.warning("Täytä kaikki kentät!")
                 else:
                     uusi = {
                         "ID": str(uuid.uuid4())[:8],
                         "Kone": valittu_kone_nimi,
-                        "ID-numero": kone_id,
+                        "ID-numero": kone_id,  # Ei Sheetissä, mutta voidaan hyödyntää!
                         "Ryhmä": valittu_ryhma,
                         "Tunnit": kayttotunnit,
                         "Päivämäärä": pvm.strftime("%d.%m.%Y"),
@@ -217,6 +218,7 @@ with tab1:
                     tallenna_huollot(yhdistetty)
                     st.success("Huolto tallennettu!")
                     st.rerun()
+
 
 # --- Huoltohistoria + Muokkaus + PDF ---
 with tab2:
@@ -315,7 +317,7 @@ with tab2:
 
         # --- PDF-lataus ---
         if st.button("Lataa PDF", key="pdf_tab2"):
-            pdfdata = lataa_pdf(df)
+            pdfdata = lataa_pdf(df_naytto)
             st.download_button(
                 label="Lataa PDF-tiedosto",
                 data=pdfdata,
@@ -324,132 +326,6 @@ with tab2:
                 key="pdf_dl_tab2"
             )
 
-
-        # PDF-lataus pysyy kuten ennen (tai uusitun logiikan mukaan)
-        # ...
-
-
-        def tee_pdf_data(df):
-            rows = []
-            for kone in df["Kone"].unique():
-                kone_df = df[df["Kone"] == kone]
-                eka = True
-                for idx, row in kone_df.iterrows():
-                    if eka:
-                        rivi = [
-                            kone,
-                            row.get("Ryhmä", ""),
-                            row.get("Tunnit", ""),
-                            row.get("Päivämäärä", ""),
-                            row.get("Vapaa teksti", ""),
-                        ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        rows.append(rivi)
-                        id_rivi = [
-                            row.get("ID", ""), "", "", "", ""
-                        ] + ["" for k in LYHENTEET]
-                        rows.append(id_rivi)
-                        eka = False
-                    else:
-                        rivi = [
-                            "",
-                            row.get("Ryhmä", ""),
-                            row.get("Tunnit", ""),
-                            row.get("Päivämäärä", ""),
-                            row.get("Vapaa teksti", ""),
-                        ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        rows.append(rivi)
-            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
-            return [columns] + rows
-
-        def lataa_pdf(df):
-            buffer = BytesIO()
-            vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
-            otsikkotyyli = ParagraphStyle(
-                name="OtsikkoIso",
-                fontName="Helvetica-Bold",
-                fontSize=16,
-                leading=22,
-                alignment=0
-            )
-            doc = SimpleDocTemplate(
-                buffer, pagesize=landscape(A4),
-                rightMargin=0.5 * inch, leftMargin=0.5 * inch,
-                topMargin=0.7 * inch, bottomMargin=0.5 * inch
-            )
-            data = tee_pdf_data(df)
-
-            # Otsikko ja päivämäärä
-            otsikko = Paragraph("Huoltohistoria", otsikkotyyli)
-            paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), getSampleStyleSheet()["Normal"])
-            otsikko_paivays_table = Table(
-                [[otsikko, paivays]],
-                colWidths=[380, 200]
-            )
-            otsikko_paivays_table.setStyle(TableStyle([
-                ("ALIGN", (0,0), (0,0), "LEFT"),
-                ("ALIGN", (1,0), (1,0), "RIGHT"),
-                ("VALIGN", (0,0), (-1,-1), "TOP"),
-                ("BOTTOMPADDING", (0,0), (-1,-1), 0),
-                ("TOPPADDING", (0,0), (-1,-1), 0),
-            ]))
-
-            # Taulukko
-            def pdf_rivi(rivi):
-                uusi = []
-                for cell in rivi:
-                    if str(cell).strip().upper() in ["✔", "OK"]:
-                        uusi.append(Paragraph('<font color="green">✔</font>', vihrea))
-                    else:
-                        uusi.append(str(cell) if cell is not None else "")
-                return uusi
-
-            table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
-            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
-            sarakeleveys = [110, 80, 60, 80, 140] + [32 for _ in LYHENTEET]
-            table = Table(table_data, repeatRows=1, colWidths=sarakeleveys)
-            table_styles = [
-                ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 8),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ]
-            for r_idx, row in enumerate(table_data[1:], start=1):
-                if str(row[0]).strip() and str(row[1]).strip():
-                    table_styles.append(('FONTNAME', (0, r_idx), (0, r_idx), 'Helvetica-Bold'))
-            table.setStyle(TableStyle(table_styles))
-
-            # Sivunumeron lisäys
-            def pdf_footer(canvas, doc):
-                canvas.saveState()
-                canvas.setFont('Helvetica', 8)
-                canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
-                canvas.restoreState()
-
-            # Rakenna PDF
-            from reportlab.platypus import Spacer
-            elements = [
-                Spacer(1, 4 * inch / 10),    # vähän tilaa ylös
-                otsikko_paivays_table,
-                Spacer(1, 0.2 * inch),
-                table
-            ]
-            doc.build(elements, onFirstPage=pdf_footer, onLaterPages=pdf_footer)
-            buffer.seek(0)
-            return buffer
-
-
-        if st.button("Lataa PDF"):
-            pdfdata = lataa_pdf(df)
-            st.download_button(
-                label="Lataa PDF-tiedosto",
-                data=pdfdata,
-                file_name="huoltohistoria.pdf",
-                mime="application/pdf"
-            )
 
 # --- Koneiden ja ryhmien hallinta ---
 with tab3:
