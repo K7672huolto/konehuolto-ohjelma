@@ -55,7 +55,7 @@ st.markdown(
         background-image: url('{kuva_base64}');
         background-size: cover;
         background-position: center;
-        padding: 90px 0 px 0;
+        padding: 90px 0 90px 0;
         margin-bottom: 0.2em;
         text-align: center;
         width: 100vw;
