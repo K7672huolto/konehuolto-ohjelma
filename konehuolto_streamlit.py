@@ -24,6 +24,7 @@ def login():
     password = st.text_input("Salasana", type="password", key="pw_login")
     login_attempt = st.button("Kirjaudu")
     if login_attempt:
+        st.session_state.login_failed = False   # nollaa edellinen virhe aina kun nappia painetaan
         if username == "mattipa" and password == "jdtoro#":
             st.session_state.logged_in = True
             st.experimental_rerun()
