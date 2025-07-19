@@ -29,7 +29,7 @@ def login():
 if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     login()
     st.stop()
- )
+    )
 
 # --- Taustakuva (banneri) ---
 def taustakuva_local(filename):
