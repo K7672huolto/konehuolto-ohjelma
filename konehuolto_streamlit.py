@@ -13,7 +13,6 @@ from reportlab.lib.units import inch
 import base64
 import uuid
 
-# --- Kirjautuminen ---
 def login():
     st.title("Kirjaudu sisään")
     username = st.text_input("Käyttäjätunnus")
@@ -21,14 +20,16 @@ def login():
     if st.button("Kirjaudu"):
         if username == "mattipa" and password == "jdtoro#":
             st.session_state["logged_in"] = True
-            st.experimental_rerun()   # <- tämä ratkaisee ongelman!
+            st.experimental_rerun()
         else:
-            st.error("Väärä käyttäjätunnus tai salasana.")
-
+            st.session_state["login_failed"] = True
 
 if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     login()
+    if st.session_state.get("login_failed", False):
+        st.error("Väärä käyttäjätunnus tai salasana.")
     st.stop()
+
 
 # --- Taustakuva (banneri) ---
 def taustakuva_local(filename):
