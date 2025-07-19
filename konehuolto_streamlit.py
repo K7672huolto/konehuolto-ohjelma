@@ -221,24 +221,25 @@ with tab1:
 # --- Huoltohistoria + Muokkaus + PDF ---
 with tab2:
     st.header("Huoltohistoria")
-    if huolto_df.empty:
+    if huolto_df.empty or huolto_df["Kone"].dropna().empty:
         st.info("Ei huoltoja tallennettu vielä.")
     else:
         df = huolto_df.copy()
         df = df.reset_index(drop=True)
 
         # --- Ryhmän ja koneen suodatus ---
-        kaikki_ryhmat = ["Kaikki"] + sorted(df["Ryhmä"].dropna().unique().tolist())
-        valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", kaikki_ryhmat)
-        if valittu_ryhma != "Kaikki":
-            df = df[df["Ryhmä"] == valittu_ryhma]
+        kaikki_ryhmat = ["Kaikki"] + sorted([r for r in df["Ryhmä"].dropna().unique() if r])
+        valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", kaikki_ryhmat, index=0)
+        df_ryhma = df if valittu_ryhma == "Kaikki" else df[df["Ryhmä"] == valittu_ryhma]
 
-        kaikki_koneet = ["Kaikki"] + sorted(df["Kone"].dropna().unique().tolist())
-        valittu_kone = st.selectbox("Suodata koneen mukaan", kaikki_koneet)
-        if valittu_kone != "Kaikki":
-            df = df[df["Kone"] == valittu_kone]
-        # --- Suodatus päättyy ---
+        kaikki_koneet = ["Kaikki"] + sorted([k for k in df_ryhma["Kone"].dropna().unique() if k])
+        valittu_kone = st.selectbox("Suodata koneen mukaan", kaikki_koneet, index=0)
+        df_kone = df_ryhma if valittu_kone == "Kaikki" else df_ryhma[df_ryhma["Kone"] == valittu_kone]
 
+        # Käytetään jatkossa vain suodatettua df_kone:a
+        df = df_kone.reset_index(drop=True)
+
+        # ✔-LOGIIKKA
         def fmt_ok(x):
             return "✔" if str(x).strip().upper() == "OK" else x
 
@@ -311,6 +312,17 @@ with tab2:
                 tallenna_huollot(df)
                 st.success("Huolto poistettu!")
                 st.rerun()
+
+        # --- PDF-lataus, jos käytössä ---
+        if st.button("Lataa PDF"):
+            pdfdata = lataa_pdf(df)
+            st.download_button(
+                label="Lataa PDF-tiedosto",
+                data=pdfdata,
+                file_name="huoltohistoria.pdf",
+                mime="application/pdf"
+            )
+
 
         # PDF-lataus pysyy kuten ennen (tai uusitun logiikan mukaan)
         # ...
