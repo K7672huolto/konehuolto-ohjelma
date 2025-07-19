@@ -14,6 +14,8 @@ import base64
 import uuid
 
 # --- Kirjautuminen ---
+import streamlit as st
+
 def login():
     st.title("Kirjaudu sisään")
     username = st.text_input("Käyttäjätunnus")
@@ -27,6 +29,7 @@ def login():
 if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     login()
     st.stop()
+ )
 
 # --- Taustakuva (banneri) ---
 def taustakuva_local(filename):
@@ -224,6 +227,18 @@ with tab2:
         df = huolto_df.copy()
         df = df.reset_index(drop=True)
 
+        # --- Ryhmän ja koneen suodatus ---
+        kaikki_ryhmat = ["Kaikki"] + sorted(df["Ryhmä"].dropna().unique().tolist())
+        valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", kaikki_ryhmat)
+        if valittu_ryhma != "Kaikki":
+            df = df[df["Ryhmä"] == valittu_ryhma]
+
+        kaikki_koneet = ["Kaikki"] + sorted(df["Kone"].dropna().unique().tolist())
+        valittu_kone = st.selectbox("Suodata koneen mukaan", kaikki_koneet)
+        if valittu_kone != "Kaikki":
+            df = df[df["Kone"] == valittu_kone]
+        # --- Suodatus päättyy ---
+
         def fmt_ok(x):
             return "✔" if str(x).strip().upper() == "OK" else x
 
@@ -296,6 +311,10 @@ with tab2:
                 tallenna_huollot(df)
                 st.success("Huolto poistettu!")
                 st.rerun()
+
+        # PDF-lataus pysyy kuten ennen (tai uusitun logiikan mukaan)
+        # ...
+
 
         def tee_pdf_data(df):
             rows = []
