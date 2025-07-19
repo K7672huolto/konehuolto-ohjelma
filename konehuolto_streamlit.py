@@ -12,13 +12,17 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 import base64
 import uuid
+import streamlit as st
+
+# Asetetaan login-state oletuksena False, jos sitä ei vielä ole
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
 def login():
     st.title("Kirjaudu sisään")
     username = st.text_input("Käyttäjätunnus", key="user_login")
     password = st.text_input("Salasana", type="password", key="pw_login")
     login_attempt = st.button("Kirjaudu")
-    
     if login_attempt:
         if username == "mattipa" and password == "jdtoro#":
             st.session_state.logged_in = True
@@ -26,14 +30,14 @@ def login():
         else:
             st.session_state.login_failed = True
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
 if not st.session_state.logged_in:
     login()
     if st.session_state.get("login_failed", False):
         st.error("Väärä käyttäjätunnus tai salasana.")
     st.stop()
+
+# Tästä eteenpäin ohjelma jatkuu vain jos on kirjauduttu!
+
 
 
 
