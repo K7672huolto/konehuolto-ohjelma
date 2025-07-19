@@ -12,36 +12,23 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 import base64
 import uuid
-import streamlit as st
 
-# Asetetaan login-state oletuksena False, jos sitä ei vielä ole
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
+# --- Kirjautuminen ---
 def login():
     st.title("Kirjaudu sisään")
-    username = st.text_input("Käyttäjätunnus", key="user_login")
-    password = st.text_input("Salasana", type="password", key="pw_login")
-    login_attempt = st.button("Kirjaudu")
-    if login_attempt:
-        st.session_state.login_failed = False   # nollaa edellinen virhe aina kun nappia painetaan
+    username = st.text_input("Käyttäjätunnus")
+    password = st.text_input("Salasana", type="password")
+    if st.button("Kirjaudu"):
         if username == "mattipa" and password == "jdtoro#":
-            st.session_state.logged_in = True
-            st.experimental_rerun()
+            st.session_state["logged_in"] = True
+            st.experimental_rerun()   # <- tämä ratkaisee ongelman!
         else:
-            st.session_state.login_failed = True
+            st.error("Väärä käyttäjätunnus tai salasana.")
 
-if not st.session_state.logged_in:
+
+if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     login()
-    if st.session_state.get("login_failed", False):
-        st.error("Väärä käyttäjätunnus tai salasana.")
     st.stop()
-
-# Tästä eteenpäin ohjelma jatkuu vain jos on kirjauduttu!
-
-
-
-
 
 # --- Taustakuva (banneri) ---
 def taustakuva_local(filename):
@@ -68,7 +55,7 @@ st.markdown(
         background-image: url('{kuva_base64}');
         background-size: cover;
         background-position: center;
-        padding: 90px 0 90px 0;
+        padding: 90px 0 px 0;
         margin-bottom: 0.2em;
         text-align: center;
         width: 100vw;
