@@ -31,6 +31,7 @@ if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     st.stop()
 
 
+
 # --- Taustakuva (banneri) ---
 def taustakuva_local(filename):
     try:
