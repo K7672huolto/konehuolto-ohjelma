@@ -163,16 +163,16 @@ with tab1:
 
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            # Debug: tulosta sarakkeet näkyviin (poista rivi kun kaikki toimii)
-            st.write("Sarakkeet:", koneet_df2.columns.tolist())
-            # Selvitä sarakenimet
-            mahdolliset_nimi = [c for c in koneet_df2.columns if c.strip().lower() in ["kone", "nimi"]]
-            mahdolliset_id = [c for c in koneet_df2.columns if c.strip().lower() == "id"]
-            if not mahdolliset_nimi or not mahdolliset_id:
-                st.error("Sheetissä ei löydy joko koneen nimeä (Kone/nimi) tai ID-saraketta! Tarkista sheetin otsikot. Sarakkeet: "+str(koneet_df2.columns.tolist()))
+            st.write("DEBUG – koneet_df2:", koneet_df2)
+            st.write("DEBUG – sarakkeet:", koneet_df2.columns.tolist())
+
+            # Haetaan tarkasti oikeat sarakkeet
+            if "Kone" in koneet_df2.columns and "ID" in koneet_df2.columns:
+                kone_sarake = "Kone"
+                id_sarake = "ID"
+            else:
+                st.error(f"SHEETISSÄ EI OLE SARAKEOTSIKOITA 'Kone' ja 'ID'.")
                 st.stop()
-            kone_sarake = mahdolliset_nimi[0]
-            id_sarake = mahdolliset_id[0]
 
             koneet_df2[kone_sarake] = koneet_df2[kone_sarake].fillna("Tuntematon kone")
             koneet_df2["valinta"] = koneet_df2[kone_sarake]
@@ -183,7 +183,11 @@ with tab1:
                 index=0 if len(koneet_df2) > 0 else None
             )
             valittu_kone_nimi = kone_valinta
-            kone_id = koneet_df2[koneet_df2[kone_sarake] == valittu_kone_nimi][id_sarake].values[0]
+            try:
+                kone_id = koneet_df2[koneet_df2[kone_sarake] == valittu_kone_nimi][id_sarake].values[0]
+            except Exception as e:
+                st.error(f"Virhe koneen ID:n haussa: {e}")
+                kone_id = ""
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
             kone_id = ""
@@ -227,6 +231,7 @@ with tab1:
                     tallenna_huollot(yhdistetty)
                     st.success("Huolto tallennettu!")
                     st.rerun()
+)
 
 
 
