@@ -163,16 +163,18 @@ with tab1:
     else:
         valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="ryhma_selectbox")
         koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
-        if koneet_ryhmaan:
-            koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            # Koneen nimi ensin, sitten ID (sulkeissa)
-            koneet_df2["valinta"] = koneet_df2["nimi"] + " (ID: " + koneet_df2["id"].astype(str) + ")"
-            kone_valinta = st.radio(
-                "Valitse kone:",
-                koneet_df2["valinta"].tolist(),
-                key="konevalinta_radio",
-                index=0 if len(koneet_df2) > 0 else None
+        df_naytto = esikatselu_df(df)  # tämä palauttaa oikean muotoisen df:n
+
+        if st.button("Lataa PDF", key="pdf_tab2"):
+            pdfdata = lataa_pdf(df_naytto)   # <-- käytä tätä, EI raakaa df:ää!
+            st.download_button(
+                label="Lataa PDF-tiedosto",
+                data=pdfdata,
+                file_name="huoltohistoria.pdf",
+                mime="application/pdf",
+                key="pdf_dl_tab2"
             )
+
             valittu_kone_nimi = kone_valinta.split(" (ID:")[0]
             kone_id = koneet_df2[koneet_df2["nimi"] == valittu_kone_nimi]["id"].values[0]
         else:
@@ -277,7 +279,18 @@ with tab2:
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
             return pd.DataFrame(rows, columns=columns)
 
-        df_naytto = esikatselu_df(df)
+        df_naytto = esikatselu_df(df)  # tämä palauttaa oikean muotoisen df:n
+
+        if st.button("Lataa PDF", key="pdf_tab2"):
+            pdfdata = lataa_pdf(df_naytto)   # <-- käytä tätä, EI raakaa df:ää!
+            st.download_button(
+                label="Lataa PDF-tiedosto",
+                data=pdfdata,
+                file_name="huoltohistoria.pdf",
+                mime="application/pdf",
+                key="pdf_dl_tab2"
+            )
+
         st.dataframe(df_naytto, hide_index=True, key="df_naytto_tab2")
 
         muokattava_id = st.selectbox("Valitse muokattava huolto", [""] + df["ID"].astype(str).tolist(), key="muokattava_id_tab2")
