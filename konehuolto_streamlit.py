@@ -142,7 +142,7 @@ def tallenna_koneet(df):
 def ryhmat_ja_koneet(df):
     d = {}
     for _, r in df.iterrows():
-        d.setdefault(r["Ryhmä"], []).append({"nimi": r["Kone"], "id": r["ID"]})
+        d.setdefault(r["Ryhmä"], []).append({"Kone": r["Kone"], "ID": r["ID"]})
     return d
 
 huolto_df = lue_huollot()
@@ -162,6 +162,7 @@ with tab1:
         koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
+            # Koneen nimi ensin, sitten ID
             koneet_df2["valinta"] = koneet_df2["Kone"] + " (ID: " + koneet_df2["ID"].astype(str) + ")"
             kone_valinta = st.radio(
                 "Valitse kone:",
@@ -171,7 +172,6 @@ with tab1:
             )
             valittu_kone_nimi = kone_valinta.split(" (ID:")[0]
             kone_id = koneet_df2[koneet_df2["Kone"] == valittu_kone_nimi]["ID"].values[0]
-
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
             kone_id = ""
@@ -386,6 +386,9 @@ with tab2:
                 mime="application/pdf",
                 key="pdf_dl_tab2"
             )
+
+# --- Koneiden ja ryhmien hallinta (tab3) pysyy entisellään ---
+
 
 # --- Koneiden ja ryhmien hallinta (tab3) pysyy entisellään ---
 
