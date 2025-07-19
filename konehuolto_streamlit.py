@@ -162,8 +162,9 @@ with tab1:
         koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            # Koneen nimi ensin, sitten ID
+            koneet_df2["Kone"] = koneet_df2["Kone"].fillna("Tuntematon kone")  # Varmistus
             koneet_df2["valinta"] = koneet_df2["Kone"] + " (ID: " + koneet_df2["ID"].astype(str) + ")"
+            st.write("Koneet (debug):", koneet_df2)  # Voit poistaa tämän kun kaikki toimii!
             kone_valinta = st.radio(
                 "Valitse kone:",
                 koneet_df2["valinta"].tolist(),
@@ -388,43 +389,3 @@ with tab2:
             )
 
 # --- Koneiden ja ryhmien hallinta (tab3) pysyy entisellään ---
-
-
-# --- Koneiden ja ryhmien hallinta (tab3) pysyy entisellään ---
-
-
-
-# --- Koneiden ja ryhmien hallinta ---
-with tab3:
-    st.header("Koneiden ja ryhmien hallinta")
-    uusi_ryhma = st.selectbox("Ryhmän valinta tai luonti", list(koneet_data.keys())+["Uusi ryhmä"], key="uusi_ryhma")
-    kaytettava_ryhma = st.text_input("Uuden ryhmän nimi") if uusi_ryhma=="Uusi ryhmä" else uusi_ryhma
-    uusi_nimi = st.text_input("Koneen nimi")
-    uusi_id = st.text_input("Koneen ID-numero")
-    if st.button("Lisää kone"):
-        if kaytettava_ryhma and uusi_nimi and uusi_id:
-            uusi = pd.DataFrame([{"Kone": uusi_nimi, "ID": uusi_id, "Ryhmä": kaytettava_ryhma}])
-            uusi_koneet_df = pd.concat([koneet_df, uusi], ignore_index=True)
-            tallenna_koneet(uusi_koneet_df)
-            st.success(f"Kone {uusi_nimi} lisätty ryhmään {kaytettava_ryhma}")
-            st.rerun()
-        else:
-            st.warning("Täytä kaikki kentät.")
-
-    st.subheader("Poista kone")
-    if not koneet_df.empty:
-        poisto_ryhma = st.selectbox("Valitse ryhmä (poistoa varten)", list(koneet_data.keys()), key="poistoryhma")
-        koneet_poisto = koneet_df[koneet_df["Ryhmä"] == poisto_ryhma]
-        if not koneet_poisto.empty:
-            poisto_nimi = st.selectbox("Valitse kone", koneet_poisto["Kone"].tolist(), key="poistokone")
-            if st.button("Poista kone"):
-                uusi_koneet_df = koneet_df[~((koneet_df["Ryhmä"] == poisto_ryhma) & (koneet_df["Kone"] == poisto_nimi))]
-                tallenna_koneet(uusi_koneet_df)
-                st.success(f"Kone {poisto_nimi} poistettu.")
-                st.rerun()
-        else:
-            st.info("Valitussa ryhmässä ei koneita.")
-    else:
-        st.info("Ei ryhmiä.")
-
-    st.markdown("---")
