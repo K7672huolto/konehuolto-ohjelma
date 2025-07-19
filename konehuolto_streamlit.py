@@ -229,11 +229,11 @@ with tab2:
 
         # --- Ryhmän ja koneen suodatus ---
         kaikki_ryhmat = ["Kaikki"] + sorted([r for r in df["Ryhmä"].dropna().unique() if r])
-        valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", kaikki_ryhmat, index=0)
+        valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", kaikki_ryhmat, index=0, key="ryhma_suodatin_tab2")
         df_ryhma = df if valittu_ryhma == "Kaikki" else df[df["Ryhmä"] == valittu_ryhma]
 
         kaikki_koneet = ["Kaikki"] + sorted([k for k in df_ryhma["Kone"].dropna().unique() if k])
-        valittu_kone = st.selectbox("Suodata koneen mukaan", kaikki_koneet, index=0)
+        valittu_kone = st.selectbox("Suodata koneen mukaan", kaikki_koneet, index=0, key="kone_suodatin_tab2")
         df_kone = df_ryhma if valittu_kone == "Kaikki" else df_ryhma[df_ryhma["Kone"] == valittu_kone]
 
         # Käytetään jatkossa vain suodatettua df_kone:a
@@ -276,14 +276,14 @@ with tab2:
             return pd.DataFrame(rows, columns=columns)
 
         df_naytto = esikatselu_df(df)
-        st.dataframe(df_naytto, hide_index=True)
+        st.dataframe(df_naytto, hide_index=True, key="df_naytto_tab2")
 
-        muokattava_id = st.selectbox("Valitse muokattava huolto", [""] + df["ID"].astype(str).tolist())
+        muokattava_id = st.selectbox("Valitse muokattava huolto", [""] + df["ID"].astype(str).tolist(), key="muokattava_id_tab2")
         if muokattava_id:
             valittu = df[df["ID"].astype(str) == muokattava_id].iloc[0]
-            uusi_tunnit = st.text_input("Tunnit/km", value=valittu.get("Tunnit", ""))
-            uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""))
-            uusi_vapaa = st.text_input("Vapaa teksti", value=valittu.get("Vapaa teksti", ""))
+            uusi_tunnit = st.text_input("Tunnit/km", value=valittu.get("Tunnit", ""), key="uusi_tunnit_tab2")
+            uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""), key="uusi_pvm_tab2")
+            uusi_vapaa = st.text_input("Vapaa teksti", value=valittu.get("Vapaa teksti", ""), key="uusi_vapaa_tab2")
             uusi_kohta = {}
             for pitkä, lyhenne in HUOLTOKOHTEET.items():
                 vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
@@ -295,9 +295,9 @@ with tab2:
                     pitkä,
                     vaihtoehdot,
                     index=vaihtoehdot_upper.index(arvo),
-                    key=f"edit_{lyhenne}"
+                    key=f"edit_{lyhenne}_tab2"
                 )
-            if st.button("Tallenna muutokset"):
+            if st.button("Tallenna muutokset", key="tallenna_tab2"):
                 idx = df[df["ID"].astype(str) == muokattava_id].index[0]
                 df.at[idx, "Tunnit"] = uusi_tunnit
                 df.at[idx, "Päivämäärä"] = uusi_pvm
@@ -307,20 +307,21 @@ with tab2:
                 tallenna_huollot(df)
                 st.success("Tallennettu!")
                 st.rerun()
-            if st.button("Poista tämä huolto"):
+            if st.button("Poista tämä huolto", key="poista_tab2"):
                 df = df[df["ID"].astype(str) != muokattava_id]
                 tallenna_huollot(df)
                 st.success("Huolto poistettu!")
                 st.rerun()
 
-        # --- PDF-lataus, jos käytössä ---
-        if st.button("Lataa PDF"):
+        # --- PDF-lataus ---
+        if st.button("Lataa PDF", key="pdf_tab2"):
             pdfdata = lataa_pdf(df)
             st.download_button(
                 label="Lataa PDF-tiedosto",
                 data=pdfdata,
                 file_name="huoltohistoria.pdf",
-                mime="application/pdf"
+                mime="application/pdf",
+                key="pdf_dl_tab2"
             )
 
 
