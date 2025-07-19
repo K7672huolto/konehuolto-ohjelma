@@ -160,24 +160,34 @@ with tab1:
     else:
         valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="ryhma_selectbox")
         koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
+
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            kone_sarake = "Kone" if "Kone" in koneet_df2.columns else "nimi"
-            koneet_df2["valinta"] = koneet_df2[kone_sarake] + " (ID: " + koneet_df2["ID"].astype(str) + ")"
 
+            # Selvitä oikea koneen nimen sarake (yleensä "Kone")
+            sarakevaihtoehdot = [c for c in koneet_df2.columns if c.strip().lower() in ["kone", "nimi"]]
+            if sarakevaihtoehdot:
+                kone_sarake = sarakevaihtoehdot[0]
+            else:
+                st.error("Koneen nimen saraketta ei löytynyt! Otsikot: " + str(list(koneet_df2.columns)))
+                st.stop()
+
+            koneet_df2[kone_sarake] = koneet_df2[kone_sarake].fillna("Tuntematon kone")
+            # Pelkkä nimi näkyy valinnassa
+            koneet_df2["valinta"] = koneet_df2[kone_sarake]
             kone_valinta = st.radio(
                 "Valitse kone:",
                 koneet_df2["valinta"].tolist(),
                 key="konevalinta_radio",
                 index=0 if len(koneet_df2) > 0 else None
             )
-            valittu_kone_nimi = kone_valinta.split(" (ID:")[0]
-            kone_id = koneet_df2[koneet_df2["Kone"] == valittu_kone_nimi]["ID"].values[0]
-
+            valittu_kone_nimi = kone_valinta
+            kone_id = koneet_df2[koneet_df2[kone_sarake] == valittu_kone_nimi]["ID"].values[0]
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
             kone_id = ""
             valittu_kone_nimi = ""
+
         if kone_id:
             col1, col2 = st.columns(2)
             with col1:
@@ -216,6 +226,7 @@ with tab1:
                     tallenna_huollot(yhdistetty)
                     st.success("Huolto tallennettu!")
                     st.rerun()
+
 
 # --- Huoltohistoria + Muokkaus + PDF ---
 with tab2:
@@ -427,6 +438,3 @@ with tab3:
         st.info("Ei ryhmiä.")
 
     st.markdown("---")
-
-
-# --- Koneiden ja ryhmien hallinta (tab3) pysyy entisellään ---
