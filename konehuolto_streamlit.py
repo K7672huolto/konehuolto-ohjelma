@@ -130,6 +130,8 @@ def lue_koneet():
     try:
         ws = get_gsheet_connection("Koneet")
         data = ws.get_all_records()
+        df = pd.DataFrame(data)
+        return df
     except Exception as e:
         st.error(f"VIRHE KONEET LUKU: {e}")
         return pd.DataFrame()
