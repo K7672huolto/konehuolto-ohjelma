@@ -407,6 +407,16 @@ with tab3:
                 uusi_koneet_df = koneet_df[~((koneet_df["Ryhmä"] == poisto_ryhma) & (koneet_df["Kone"] == poisto_nimi))]
                 tallenna_koneet(uusi_koneet_df)
                 st.success(f"Kone {poisto_nimi} poistettu.")
+                # Automaattinen lomakkeen tyhjennys:
+                st.session_state["kayttotunnit"] = ""
+                st.session_state["vapaa"] = ""
+                for pitkä in HUOLTOKOHTEET:
+                    st.session_state[f"valinta_{pitkä}"] = "--"
+                st.experimental_rerun()
+            f st.button("Poista kone"):
+                uusi_koneet_df = koneet_df[~((koneet_df["Ryhmä"] == poisto_ryhma) & (koneet_df["Kone"] == poisto_nimi))]
+                tallenna_koneet(uusi_koneet_df)
+                st.success(f"Kone {poisto_nimi} poistettu.")
                 st.rerun()
         else:
             st.info("Valitussa ryhmässä ei koneita.")
