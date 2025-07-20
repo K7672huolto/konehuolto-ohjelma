@@ -254,19 +254,6 @@ with tab1:
 # --- Huoltohistoria + Muokkaus + PDF ---
 with tab2:
     st.header("Huoltohistoria")
-    # ... kaikki suodatuslogiikka ja esikatselu_df kuten aiemmin ...
-    df_naytto = esikatselu_df(df)
-    st.dataframe(df_naytto, hide_index=True)
-
-    if st.button("Lataa PDF", key="pdfhistoria"):
-        pdfdata = lataa_pdf(df_naytto)
-        st.download_button(
-            label="Lataa PDF-tiedosto",
-            data=pdfdata,
-            file_name="huoltohistoria.pdf",
-            mime="application/pdf"
-        )
-
 
     # Suodatus ryhmän ja koneen mukaan
     ryhmat_lista = sorted(list(koneet_data.keys()))
@@ -359,16 +346,13 @@ with tab2:
                 table_styles.append(('FONTNAME', (0, r_idx), (0, r_idx), 'Helvetica-Bold'))
         table.setStyle(TableStyle(table_styles))
 
-        # --- Otsikko, päiväys ja sivunumero joka sivulle ---
+        # Otsikko ja päiväys ja sivunumero joka sivulle
         def pdf_header_footer(canvas, doc):
             canvas.saveState()
-            # Otsikko vasempaan yläkulmaan
             canvas.setFont('Helvetica-Bold', 16)
             canvas.drawString(40, A4[1] - 40, "Huoltohistoria")
-            # Päivämäärä oikeaan yläkulmaan
             canvas.setFont('Helvetica', 10)
             canvas.drawString(640, A4[1] - 35, datetime.today().strftime("%d.%m.%Y"))
-            # Sivunumero alas keskelle
             canvas.setFont('Helvetica', 8)
             canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
             canvas.restoreState()
@@ -384,6 +368,15 @@ with tab2:
         )
         buffer.seek(0)
         return buffer
+
+    if st.button("Lataa PDF", key="pdfhistoria"):
+        pdfdata = lataa_pdf(df_naytto)
+        st.download_button(
+            label="Lataa PDF-tiedosto",
+            data=pdfdata,
+            file_name="huoltohistoria.pdf",
+            mime="application/pdf"
+        )
 
 
 # --- Koneiden ja ryhmien hallinta ---
