@@ -250,12 +250,11 @@ with tab1:
                     st.rerun()
 
 
-
 # --- Huoltohistoria + Muokkaus + PDF ---
 with tab2:
     st.header("Huoltohistoria")
 
-    # Suodatus ryhmän ja koneen mukaan
+    # --- Suodatus
     ryhmat_lista = sorted(list(koneet_data.keys()))
     valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ["Kaikki"] + ryhmat_lista, key="hist_ryhma")
     if valittu_ryhma == "Kaikki":
@@ -263,59 +262,45 @@ with tab2:
     else:
         filtered_df = huolto_df[huolto_df["Ryhmä"] == valittu_ryhma]
 
-    koneet_lista = sorted(filtered_df["Kone"].dropna().unique())
+    koneet_lista = filtered_df["Kone"].dropna().unique().tolist()
     valittu_kone = st.selectbox("Suodata koneen mukaan", ["Kaikki"] + koneet_lista, key="hist_kone")
     if valittu_kone == "Kaikki":
         df = filtered_df.copy()
     else:
         df = filtered_df[filtered_df["Kone"] == valittu_kone]
 
-    # --------- Esikatselu DataFrame ---------
+    # --- Esikatselu-muotoilu
     def esikatselu_df(df):
         rows = []
         viime_kone = None
         for idx, row in df.iterrows():
             kone = row.get("Kone", "")
             kone_id = row.get("ID-numero", "")
-            if kone != viime_kone:
-                if viime_kone is not None:
-                    rows.append([""] * (5 + len(LYHENTEET)))
-                # Koneen nimi -rivi
-                rows.append([
-                    kone,
-                    row.get("Ryhmä", ""),
-                    row.get("Tunnit", ""),
-                    row.get("Päivämäärä", ""),
-                    row.get("Vapaa teksti", ""),
-                    *[("✔" if str(row.get(k, "")).strip().upper() == "OK" else row.get(k, "")) for k in LYHENTEET]
-                ])
-                # Koneen ID -rivi (sarakkeessa 1, muut tyhjiä)
-                rows.append([
-                    kone_id,
-                    "", "", "", "",
-                    *["" for k in LYHENTEET]
-                ])
-            else:
-                rows.append([
-                    "",
-                    row.get("Ryhmä", ""),
-                    row.get("Tunnit", ""),
-                    row.get("Päivämäärä", ""),
-                    row.get("Vapaa teksti", ""),
-                    *[("✔" if str(row.get(k, "")).strip().upper() == "OK" else row.get(k, "")) for k in LYHENTEET]
-                ])
+            ryhma = row.get("Ryhmä", "")
+            tunnit = row.get("Tunnit", "")
+            pvm = row.get("Päivämäärä", "")
+            vapaa = row.get("Vapaa teksti", "")
+            huoltodata = [("✔" if str(row.get(k, "")).strip().upper() == "OK" else row.get(k, "")) for k in LYHENTEET]
+
+            if kone != viime_kone and viime_kone is not None:
+                # Koneen vaihtuessa tyhjä rivi
+                rows.append([""] * (5 + len(LYHENTEET)))
+            # 1. rivi: koneen nimi, ryhmä, tunnit, pvm, vapaa, huollot
+            rows.append([kone, ryhma, tunnit, pvm, vapaa, *huoltodata])
+            # 2. rivi: koneen ID, muut tekstit tyhjiä, huollot
+            rows.append([kone_id, "", "", "", "", *huoltodata])
             viime_kone = kone
+
         columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
         return pd.DataFrame(rows, columns=columns)
 
     df_naytto = esikatselu_df(df)
     st.dataframe(df_naytto, hide_index=True)
 
-    # --------- PDF-latausnappi ---------
+    # --- PDF
     def lataa_pdf(df):
         buffer = BytesIO()
         vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
-        # Data
         data = [df.columns.tolist()] + df.values.tolist()
 
         def pdf_rivi(rivi):
@@ -346,7 +331,6 @@ with tab2:
                 table_styles.append(('FONTNAME', (0, r_idx), (0, r_idx), 'Helvetica-Bold'))
         table.setStyle(TableStyle(table_styles))
 
-        # Otsikko ja päiväys ja sivunumero joka sivulle
         def pdf_header_footer(canvas, doc):
             canvas.saveState()
             canvas.setFont('Helvetica-Bold', 16)
