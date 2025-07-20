@@ -250,38 +250,49 @@ with tab2:
 
     def esikatselu_df(df):
         rows = []
-        viime_kone = None
         for kone in df["Kone"].unique():
-            kone_df = df[df["Kone"] == kone]
-            eka = True
-            for idx, row in kone_df.iterrows():
-                # Rivi 1: koneen nimi, muu tiedot
-                if eka:
-                    rivi1 = [
-                        kone,
-                        row.get("Ryhmä", ""),
-                        row.get("Tunnit", ""),
-                        row.get("Päivämäärä", ""),
-                        row.get("Vapaa teksti", ""),
-                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                    rows.append(rivi1)
-                    # Rivi 2: ID, muuten tyhjää
-                    rivi2 = [
-                        row.get("ID", ""),
-                        "", "", "", "",
-                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                    rows.append(rivi2)
-                    eka = False
+            kone_df = df[df["Kone"] == kone].reset_index(drop=True)
+            if len(kone_df) > 0:
+                # Eka huolto: koneen nimi näkyy
+                row1 = [
+                    kone,
+                    kone_df.loc[0, "Ryhmä"],
+                    kone_df.loc[0, "Tunnit"],
+                    kone_df.loc[0, "Päivämäärä"],
+                    kone_df.loc[0, "Vapaa teksti"],
+                ] + [fmt_ok(kone_df.loc[0, k]) for k in LYHENTEET]
+                rows.append(row1)
+                # Toinen huolto, jos on, samaan riville ID:n kanssa
+                if len(kone_df) > 1:
+                    row2 = [
+                        kone_df.loc[0, "ID"],  # ID koneen nimen alle
+                        kone_df.loc[1, "Ryhmä"] if len(kone_df) > 1 else "",
+                        kone_df.loc[1, "Tunnit"] if len(kone_df) > 1 else "",
+                        kone_df.loc[1, "Päivämäärä"] if len(kone_df) > 1 else "",
+                        kone_df.loc[1, "Vapaa teksti"] if len(kone_df) > 1 else "",
+                    ] + [fmt_ok(kone_df.loc[1, k]) if len(kone_df) > 1 else "" for k in LYHENTEET]
+                    rows.append(row2)
                 else:
-                    # Muut huollot (vain arvot, kone+ID tyhjiä)
-                    rivi = [
-                        "", "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")
-                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                    rows.append(rivi)
-            # Koneen jälkeen visuaalinen tyhjä rivi
-            rows.append([""] * (5 + len(LYHENTEET)))
+                    # Jos vain yksi huolto, ID näkyy toisella rivillä
+                    row2 = [
+                        kone_df.loc[0, "ID"], "", "", "", "",
+                    ] + ["" for k in LYHENTEET]
+                    rows.append(row2)
+                # Kolmannesta huollosta eteenpäin: pelkät arvot omille riveille
+                for i in range(2, len(kone_df)):
+                    row = [
+                        "",  # Kone/ID tyhjä
+                        kone_df.loc[i, "Ryhmä"],
+                        kone_df.loc[i, "Tunnit"],
+                        kone_df.loc[i, "Päivämäärä"],
+                        kone_df.loc[i, "Vapaa teksti"],
+                    ] + [fmt_ok(kone_df.loc[i, k]) for k in LYHENTEET]
+                    rows.append(row)
+                # Tyhjä rivi koneen jälkeen
+                rows.append([""] * (5 + len(LYHENTEET)))
         columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
         return pd.DataFrame(rows, columns=columns)
+)
 
     df_naytto = esikatselu_df(df)
     st.dataframe(df_naytto, hide_index=True)
