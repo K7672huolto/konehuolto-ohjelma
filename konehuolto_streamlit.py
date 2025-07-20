@@ -254,6 +254,19 @@ with tab1:
 # --- Huoltohistoria + Muokkaus + PDF ---
 with tab2:
     st.header("Huoltohistoria")
+    # ... kaikki suodatuslogiikka ja esikatselu_df kuten aiemmin ...
+    df_naytto = esikatselu_df(df)
+    st.dataframe(df_naytto, hide_index=True)
+
+    if st.button("Lataa PDF", key="pdfhistoria"):
+        pdfdata = lataa_pdf(df_naytto)
+        st.download_button(
+            label="Lataa PDF-tiedosto",
+            data=pdfdata,
+            file_name="huoltohistoria.pdf",
+            mime="application/pdf"
+        )
+
 
     # Suodatus ryhmän ja koneen mukaan
     ryhmat_lista = sorted(list(koneet_data.keys()))
