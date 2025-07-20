@@ -269,70 +269,87 @@ with tab2:
 
         def lataa_pdf(df):
             buffer = BytesIO()
+            vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
             otsikkotyyli = ParagraphStyle(
-                name='OtsikkoIso',
-                fontName='Helvetica-Bold',
+                name="OtsikkoIso",
+                fontName="Helvetica-Bold",
                 fontSize=16,
                 leading=22,
                 alignment=0
             )
-            paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle(name="Norm", fontSize=10, alignment=2))
+            doc = SimpleDocTemplate(
+                buffer, pagesize=landscape(A4),
+                rightMargin=0.5 * inch, leftMargin=0.5 * inch,
+                topMargin=0.7 * inch, bottomMargin=0.5 * inch
+            )
+            data = tee_pdf_data(df)
+
+            # Otsikko ja päivämäärä
             otsikko = Paragraph("Huoltohistoria", otsikkotyyli)
+            paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), getSampleStyleSheet()["Normal"])
             otsikko_paivays_table = Table(
                 [[otsikko, paivays]],
                 colWidths=[380, 200]
             )
-            vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
-            normaali = ParagraphStyle("Normaali", fontName="Helvetica", fontSize=8, alignment=0)
+            otsikko_paivays_table.setStyle(TableStyle([
+                ("ALIGN", (0,0), (0,0), "LEFT"),
+                ("ALIGN", (1,0), (1,0), "RIGHT"),
+                ("VALIGN", (0,0), (-1,-1), "TOP"),
+                ("BOTTOMPADDING", (0,0), (-1,-1), 0),
+                ("TOPPADDING", (0,0), (-1,-1), 0),
+            ]))
 
-            data = [df.columns.tolist()]
-            for _, row in df.iterrows():
-                pdf_row = []
-                for j, col in enumerate(df.columns):
-                    value = row[col]
-                    if str(value).strip().upper() in ["✔", "OK"]:
-                        pdf_row.append(Paragraph('<font color="green">✔</font>', vihrea))
+            # Taulukko
+            def pdf_rivi(rivi):
+                uusi = []
+                for cell in rivi:
+                    if str(cell).strip().upper() in ["✔", "OK"]:
+                        uusi.append(Paragraph('<font color="green">✔</font>', vihrea))
                     else:
-                        pdf_row.append(str(value))
-                data.append(pdf_row)
+                        uusi.append(str(cell) if cell is not None else "")
+                return uusi
 
-            sarakeleveys = [40, 110, 90, 55, 70, 110] + [32] * len(LYHENTEET)
-            table = Table(data, colWidths=sarakeleveys, repeatRows=1)
-            ts = TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#51c987")),
+            table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
+            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+            sarakeleveys = [110, 80, 60, 80, 140] + [32 for _ in LYHENTEET]
+            table = Table(table_data, repeatRows=1, colWidths=sarakeleveys)
+            table_styles = [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ])
-            for i in range(1, len(data)):
-                if i % 2 == 1:
-                    ts.add('BACKGROUND', (0, i), (-1, i), colors.whitesmoke)
-            table.setStyle(ts)
+            ]
+            for r_idx, row in enumerate(table_data[1:], start=1):
+                if str(row[0]).strip() and str(row[1]).strip():
+                    table_styles.append(('FONTNAME', (0, r_idx), (0, r_idx), 'Helvetica-Bold'))
+            table.setStyle(TableStyle(table_styles))
 
+            # Sivunumeron lisäys
             def pdf_footer(canvas, doc):
                 canvas.saveState()
                 canvas.setFont('Helvetica', 8)
                 canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
                 canvas.restoreState()
 
-            doc = SimpleDocTemplate(
-                buffer, pagesize=landscape(A4),
-                topMargin=35, leftMargin=40, rightMargin=40, bottomMargin=35
-            )
+            # Rakenna PDF
+            from reportlab.platypus import Spacer
             elements = [
-                Spacer(1, 4*mm),
+                Spacer(1, 4 * inch / 10),    # vähän tilaa ylös
                 otsikko_paivays_table,
-                Spacer(1, 4*mm),
+                Spacer(1, 0.2 * inch),
                 table
             ]
             doc.build(elements, onFirstPage=pdf_footer, onLaterPages=pdf_footer)
             buffer.seek(0)
             return buffer
 
-        st.markdown("#### Lataa huoltohistoria PDF-tiedostona")
+
         if st.button("Lataa PDF"):
-            pdfdata = lataa_pdf(df_naytto)
+            pdfdata = lataa_pdf(df)
             st.download_button(
                 label="Lataa PDF-tiedosto",
                 data=pdfdata,
