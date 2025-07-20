@@ -167,7 +167,7 @@ with tab1:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
             st.write("DEBUG: koneet_df2.columns:", koneet_df2.columns.tolist())
 
-            # Etsi koneen nimi- ja ID-sarake isolla TAI pienellä
+            # Etsi koneen nimi- ja ID-sarake
             if "Kone" in koneet_df2.columns:
                 kone_sarake = "Kone"
             elif "nimi" in koneet_df2.columns:
@@ -217,6 +217,7 @@ with tab1:
                     )
             vapaa = st.text_input("Vapaa teksti", key="vapaa")
             if st.button("Tallenna huolto", key="tallenna_huolto_tab1"):
+                # Nyt TARKISTETAAN VAIN pakolliset
                 if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
                     st.warning("Täytä ryhmä, kone, tunnit ja päivämäärä!")
                 else:
@@ -233,9 +234,14 @@ with tab1:
                         uusi[lyhenne] = valinnat[lyhenne]
                     uusi_df = pd.DataFrame([uusi])
                     yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
+                    yhdistetty = yhdistetty.fillna("")  # Poista NaN
+                    yhdistetty = yhdistetty.astype(str) # Kaikki stringiksi
+                    st.write("TALLENNETTAVAT SARAKKEET:", yhdistetty.columns.tolist())
+                    st.write("TALLENNETTAVAT DATA:", yhdistetty.head(3).to_dict())
                     tallenna_huollot(yhdistetty)
                     st.success("Huolto tallennettu!")
                     st.rerun()
+
 
 
 # --- Huoltohistoria + Muokkaus + PDF ---
