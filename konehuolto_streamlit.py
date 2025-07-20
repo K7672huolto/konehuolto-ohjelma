@@ -155,43 +155,30 @@ tab1, tab2, tab3 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 K
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
     ryhmat_lista = sorted(list(koneet_data.keys()))
+
     if not ryhmat_lista:
         st.info("Ei yhtään koneryhmää vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
     else:
         valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="ryhma_selectbox")
-        koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
+        koneet_ryhmaan = koneet_data.get(valittu_ryhma, [])
 
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            st.write("DEBUG – koneet_df2:", koneet_df2)
-            st.write("DEBUG – sarakkeet:", koneet_df2.columns.tolist())
-
-            # Haetaan tarkasti oikeat sarakkeet
+            st.write("DEBUG: Koneet DataFrame:", koneet_df2)
+            st.write("DEBUG: Sarakkeet:", koneet_df2.columns.tolist())
+            # Etsitään nimitarkasti oikeat sarakkeet
             if "Kone" in koneet_df2.columns and "ID" in koneet_df2.columns:
-                kone_sarake = "Kone"
-                id_sarake = "ID"
+                kone_nimet = koneet_df2["Kone"].fillna("").tolist()
+                kone_valinta = st.radio("Valitse kone:", kone_nimet, key="konevalinta_radio")
+                kone_id = koneet_df2[koneet_df2["Kone"] == kone_valinta]["ID"].values
+                kone_id = kone_id[0] if len(kone_id) > 0 else ""
             else:
-                st.error(f"SHEETISSÄ EI OLE SARAKEOTSIKOITA 'Kone' ja 'ID'.")
+                st.error("Sheetissä EI OLE sarakkeita 'Kone' ja 'ID'. Tässä on nykyiset sarakkeet: " + str(list(koneet_df2.columns)))
                 st.stop()
-
-            koneet_df2[kone_sarake] = koneet_df2[kone_sarake].fillna("Tuntematon kone")
-            koneet_df2["valinta"] = koneet_df2[kone_sarake]
-            kone_valinta = st.radio(
-                "Valitse kone:",
-                koneet_df2["valinta"].tolist(),
-                key="konevalinta_radio",
-                index=0 if len(koneet_df2) > 0 else None
-            )
-            valittu_kone_nimi = kone_valinta
-            try:
-                kone_id = koneet_df2[koneet_df2[kone_sarake] == valittu_kone_nimi][id_sarake].values[0]
-            except Exception as e:
-                st.error(f"Virhe koneen ID:n haussa: {e}")
-                kone_id = ""
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
             kone_id = ""
-            valittu_kone_nimi = ""
+            kone_valinta = ""
 
         if kone_id:
             col1, col2 = st.columns(2)
@@ -212,12 +199,12 @@ with tab1:
                     )
             vapaa = st.text_input("Vapaa teksti", key="vapaa")
             if st.button("Tallenna huolto", key="tallenna_huolto_tab1"):
-                if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
+                if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
                     st.warning("Täytä kaikki kentät!")
                 else:
                     uusi = {
                         "ID": str(uuid.uuid4())[:8],
-                        "Kone": valittu_kone_nimi,
+                        "Kone": kone_valinta,
                         "ID-numero": kone_id,  # Ei Sheetissä, mutta voidaan hyödyntää!
                         "Ryhmä": valittu_ryhma,
                         "Tunnit": kayttotunnit,
@@ -231,6 +218,7 @@ with tab1:
                     tallenna_huollot(yhdistetty)
                     st.success("Huolto tallennettu!")
                     st.rerun()
+
 
 
 
