@@ -164,7 +164,8 @@ with tab1:
         valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="ryhma_selectbox")
         koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
         if koneet_ryhmaan:
-            koneet_df2["valinta"] = koneet_df2["Kone"] + " (ID: " + koneet_df2["ID"].astype(str) + ")"
+            koneet_df2 = pd.DataFrame(koneet_ryhmaan)
+            koneet_df2["valinta"] = koneet_df2["nimi"] + " (ID: " + koneet_df2["id"].astype(str) + ")"
             kone_valinta = st.radio(
                 "Valitse kone:",
                 koneet_df2["valinta"].tolist(),
@@ -172,7 +173,7 @@ with tab1:
                 index=0 if len(koneet_df2) > 0 else None
             )
             valittu_kone_nimi = kone_valinta.split(" (ID:")[0]
-            kone_id = koneet_df2[koneet_df2["Kone"] == valittu_kone_nimi]["ID"].values[0]
+            kone_id = koneet_df2[koneet_df2["nimi"] == valittu_kone_nimi]["id"].values[0]
 
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
