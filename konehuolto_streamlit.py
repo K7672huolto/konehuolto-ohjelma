@@ -398,26 +398,26 @@ with tab3:
             st.warning("Täytä kaikki kentät.")
 
     st.subheader("Poista kone")
-        if not koneet_df.empty:
-            poisto_ryhma = st.selectbox("Valitse ryhmä (poistoa varten)", list(koneet_data.keys()), key="poistoryhma")
-            koneet_poisto = koneet_df[koneet_df["Ryhmä"] == poisto_ryhma]
-            if not koneet_poisto.empty:
-                poisto_nimi = st.selectbox("Valitse kone", koneet_poisto["Kone"].tolist(), key="poistokone")
-                # Uniikki key napille:
-                if st.button("Poista kone", key=f"poista_kone_{poisto_nimi}"):
-                    uusi_koneet_df = koneet_df[~((koneet_df["Ryhmä"] == poisto_ryhma) & (koneet_df["Kone"] == poisto_nimi))]
-                    tallenna_koneet(uusi_koneet_df)
-                    st.success(f"Kone {poisto_nimi} poistettu.")
-                    # Automaattinen lomakkeen tyhjennys:
-                    st.session_state["kayttotunnit"] = ""
-                    st.session_state["vapaa"] = ""
-                    for pitkä in HUOLTOKOHTEET:
-                        st.session_state[f"valinta_{pitkä}"] = "--"
-                    st.experimental_rerun()
-            else:
-                st.info("Valitussa ryhmässä ei koneita.")
+    if not koneet_df.empty:
+        poisto_ryhma = st.selectbox("Valitse ryhmä (poistoa varten)", list(koneet_data.keys()), key="poistoryhma")
+        koneet_poisto = koneet_df[koneet_df["Ryhmä"] == poisto_ryhma]
+        if not koneet_poisto.empty:
+            poisto_nimi = st.selectbox("Valitse kone", koneet_poisto["Kone"].tolist(), key="poistokone")
+            # Uniikki key napille:
+            if st.button("Poista kone", key=f"poista_kone_{poisto_nimi}"):
+                uusi_koneet_df = koneet_df[~((koneet_df["Ryhmä"] == poisto_ryhma) & (koneet_df["Kone"] == poisto_nimi))]
+                tallenna_koneet(uusi_koneet_df)
+                st.success(f"Kone {poisto_nimi} poistettu.")
+                # Automaattinen lomakkeen tyhjennys:
+                st.session_state["kayttotunnit"] = ""
+                st.session_state["vapaa"] = ""
+                for pitkä in HUOLTOKOHTEET:
+                    st.session_state[f"valinta_{pitkä}"] = "--"
+                st.experimental_rerun()
         else:
-            st.info("Ei ryhmiä.")
+            st.info("Valitussa ryhmässä ei koneita.")
+    else:
+        st.info("Ei ryhmiä.")
 
 
     st.markdown("---")
