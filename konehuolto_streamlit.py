@@ -229,58 +229,56 @@ with tab1:
 ### --- TAB2: Huoltohistoria ja PDF
 with tab2:
     st.header("Huoltohistoria")
+
     if huolto_df.empty:
         st.info("Ei huoltoja tallennettu vielä.")
     else:
-        df = huolto_df.copy()
-        df = df.reset_index(drop=True)
+        # Esikatselun ✔ merkki suoraan dataframeen
+        def fmt_ok(x):
+            return "✔" if str(x).strip().upper() == "OK" else x
 
         def esikatselu_df(df):
             rows = []
-            rivi_nro = 1
-            viime_kone = None
-            for idx, row in df.iterrows():
-                kone = row.get("Kone", "")
-                kone_id = row.get("ID-numero", "")
-                ryhma = row.get("Ryhmä", "")
-                tunnit = row.get("Tunnit", "")
-                pvm = row.get("Päivämäärä", "")
-                vapaa = row.get("Vapaa teksti", "")
-                huoltodata = [("✔" if str(row.get(k, "")).strip().upper() == "OK" else row.get(k, "")) for k in LYHENTEET]
-
-                # Tyhjä rivi koneen vaihtuessa (ei ensimmäiselle)
-                if kone != viime_kone and viime_kone is not None:
-                    rows.append([""] * (6 + len(LYHENTEET)))
-                    rivi_nro += 1
-
-                # 1. rivi: koneen nimi, ryhmä, tunnit, pvm, vapaa, huollot
-                rows.append([rivi_nro, kone, ryhma, tunnit, pvm, vapaa, *huoltodata])
-                rivi_nro += 1
-                # 2. rivi: ID, muut tyhjiä, huollot
-                rows.append([rivi_nro, kone_id, "", "", "", "", *huoltodata])
-                rivi_nro += 1
-                viime_kone = kone
-
+            rivinro = 1
+            for kone in df["Kone"].unique():
+                kone_df = df[df["Kone"] == kone]
+                eka = True
+                for idx, row in kone_df.iterrows():
+                    rivi = [
+                        rivinro if eka else "",
+                        kone if eka else row.get("ID", ""),
+                        row.get("Ryhmä", ""),
+                        row.get("Tunnit", ""),
+                        row.get("Päivämäärä", ""),
+                        row.get("Vapaa teksti", "")
+                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
+                    rows.append(rivi)
+                    eka = False
+                    rivinro += 1
+                # Koneen jälkeen tyhjä rivi (visuaalinen väli)
+                rows.append([""] * (6 + len(LYHENTEET)))
             columns = ["Rivi", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
             return pd.DataFrame(rows, columns=columns)
 
-        df_naytto = esikatselu_df(df)
+        df_naytto = esikatselu_df(huolto_df)
         st.dataframe(df_naytto, hide_index=True)
 
+        # --- PDF-nappi ja -luonti
         def lataa_pdf(df):
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.lib.styles import ParagraphStyle
+            from reportlab.lib.pagesizes import landscape, A4
+            from reportlab.lib import colors
+            from reportlab.lib.units import mm
+
             buffer = BytesIO()
             otsikkotyyli = ParagraphStyle(
-                name='OtsikkoIso',
-                fontName='Helvetica-Bold',
-                fontSize=16,
-                leading=22,
-                alignment=0
+                name='OtsikkoIso', fontName='Helvetica-Bold', fontSize=16, leading=22, alignment=0
             )
-            paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle(name="Norm", fontSize=10, alignment=2))
             otsikko = Paragraph("Huoltohistoria", otsikkotyyli)
+            paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle(name="Norm", fontSize=10, alignment=2))
             otsikko_paivays_table = Table(
-                [[otsikko, paivays]],
-                colWidths=[380, 200]
+                [[otsikko, paivays]], colWidths=[380, 200]
             )
             vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
             normaali = ParagraphStyle("Normaali", fontName="Helvetica", fontSize=8, alignment=0)
@@ -296,7 +294,7 @@ with tab2:
                         pdf_row.append(str(value))
                 data.append(pdf_row)
 
-            sarakeleveys = [40, 110, 90, 55, 70, 110] + [25] * (len(df.columns) - 6)
+            sarakeleveys = [32, 110, 90, 55, 70, 110] + [32] * (len(df.columns) - 6)
             table = Table(data, colWidths=sarakeleveys, repeatRows=1)
             ts = TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#51c987")),
@@ -316,20 +314,30 @@ with tab2:
                 canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
                 canvas.restoreState()
 
-            from reportlab.platypus import Spacer
             doc = SimpleDocTemplate(
                 buffer, pagesize=landscape(A4),
                 topMargin=35, leftMargin=40, rightMargin=40, bottomMargin=35
             )
             elements = [
-                Spacer(1, 16),
+                Spacer(1, 12),
                 otsikko_paivays_table,
-                Spacer(1, 16),
+                Spacer(1, 12),
                 table
             ]
             doc.build(elements, onFirstPage=pdf_footer, onLaterPages=pdf_footer)
             buffer.seek(0)
             return buffer
+
+        st.markdown("#### Lataa huoltohistoria PDF-tiedostona")
+        if st.button("Lataa PDF", key="lataa_pdf_nappi"):
+            pdfdata = lataa_pdf(df_naytto)
+            st.download_button(
+                label="Lataa PDF-tiedosto",
+                data=pdfdata,
+                file_name="huoltohistoria.pdf",
+                mime="application/pdf"
+            )
+
 
 
 # --- Koneiden ja ryhmien hallinta ---
