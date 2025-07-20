@@ -129,14 +129,11 @@ def tallenna_huollot(df):
 def lue_koneet():
     ws = get_gsheet_connection("Koneet")
     data = ws.get_all_records()
+    st.write("DEBUG DATA:", data)
     df = pd.DataFrame(data)
-    # TUKI: myös jos sheetissä sarakkeet on [nimi, id, Ryhmä] pienellä
-    if "Kone" not in df.columns and "nimi" in df.columns:
-        df = df.rename(columns={"nimi": "Kone", "id": "ID"})
-    for kentta in ["Kone", "ID", "Ryhmä"]:
-        if kentta not in df.columns:
-            df[kentta] = ""
+    st.write("DEBUG COLUMNS:", df.columns)
     return df
+
 
 def tallenna_koneet(df):
     ws = get_gsheet_connection("Koneet")
