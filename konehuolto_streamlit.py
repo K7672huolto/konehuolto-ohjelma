@@ -292,7 +292,7 @@ with tab2:
                 rows.append([""] * (5 + len(LYHENTEET)))
         columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
         return pd.DataFrame(rows, columns=columns)
-)
+
 
     df_naytto = esikatselu_df(df)
     st.dataframe(df_naytto, hide_index=True)
