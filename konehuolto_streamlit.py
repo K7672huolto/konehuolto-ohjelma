@@ -162,29 +162,38 @@ with tab1:
         st.info("Ei yhtään koneryhmää vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
     else:
         valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="ryhma_selectbox")
-        koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
+        koneet_ryhmaan = koneet_data.get(valittu_ryhma, [])
+
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            koneet_df2["valinta"] = koneet_df2["nimi"] + " (ID: " + koneet_df2["id"].astype(str) + ")"
-            kone_valinta = st.radio(
-                "Valitse kone:",
-                koneet_df2["valinta"].tolist(),
-                key="konevalinta_radio",
-                index=0 if len(koneet_df2) > 0 else None
-            )
-            valittu_kone_nimi = kone_valinta.split(" (ID:")[0]
-            kone_id = koneet_df2[koneet_df2["nimi"] == valittu_kone_nimi]["id"].values[0]
+            # Debug: Näytä sarakkeet, helpottaa sheet-bugeissa (voit poistaa tämän myöhemmin)
+            st.write("DEBUG: koneet_df2.columns:", koneet_df2.columns.tolist())
+
+            if "Kone" in koneet_df2.columns and "ID" in koneet_df2.columns:
+                koneet_df2["Kone"] = koneet_df2["Kone"].fillna("Tuntematon kone")
+                kone_valinta = st.radio(
+                    "Valitse kone:",
+                    koneet_df2["Kone"].tolist(),
+                    key="konevalinta_radio",
+                    index=0 if len(koneet_df2) > 0 else None
+                )
+                kone_id = koneet_df2[koneet_df2["Kone"] == kone_valinta]["ID"].values
+                kone_id = kone_id[0] if len(kone_id) > 0 else ""
+            else:
+                st.error("Google Sheetin 'Koneet'-välilehdellä pitää olla sarakkeet 'Kone' ja 'ID' (isolla alkukirjaimella). Nyt sarakkeet ovat: " + str(list(koneet_df2.columns)))
+                st.stop()
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
             kone_id = ""
-            valittu_kone_nimi = ""
+            kone_valinta = ""
+
         if kone_id:
             col1, col2 = st.columns(2)
             with col1:
                 kayttotunnit = st.text_input("Tunnit/km", key="kayttotunnit")
             with col2:
                 pvm = st.date_input("Päivämäärä", value=datetime.today(), key="pvm")
-            st.markdown("#### Huoltokohteet (valinnainen)")
+            st.markdown("#### Huoltokohteet")
             vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
             valinnat = {}
             cols_huolto = st.columns(6)
@@ -196,14 +205,14 @@ with tab1:
                         index=0
                     )
             vapaa = st.text_input("Vapaa teksti", key="vapaa")
-            # *** VAIN pääkentät vaaditaan! ***
-            if st.button("Tallenna huolto"):
-                if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
-                    st.warning("Täytä kaikki pakolliset kentät: ryhmä, kone, tunnit ja päivämäärä!")
+            if st.button("Tallenna huolto", key="tallenna_huolto_tab1"):
+                # Nyt TARKISTETAAN VAIN pakolliset (ei tarvitse täyttää kaikkia huoltokenttiä)
+                if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
+                    st.warning("Täytä ryhmä, kone, tunnit ja päivämäärä!")
                 else:
                     uusi = {
                         "ID": str(uuid.uuid4())[:8],
-                        "Kone": valittu_kone_nimi,
+                        "Kone": kone_valinta,
                         "ID-numero": kone_id,
                         "Ryhmä": valittu_ryhma,
                         "Tunnit": kayttotunnit,
@@ -217,6 +226,7 @@ with tab1:
                     tallenna_huollot(yhdistetty)
                     st.success("Huolto tallennettu!")
                     st.rerun()
+
 
 # --- Huoltohistoria + Muokkaus + PDF ---
 with tab2:
