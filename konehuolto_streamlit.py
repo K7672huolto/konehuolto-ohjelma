@@ -443,9 +443,7 @@ with tab3:
                 uusi_koneet_df = koneet_df[~((koneet_df["Ryhmä"] == poisto_ryhma) & (koneet_df["Kone"] == poisto_nimi))]
                 tallenna_koneet(uusi_koneet_df)
                 st.success(f"Kone {poisto_nimi} poistettu.")
-                st.session_state["tab3_uusi_ryhman_nimi"] = ""
-                st.session_state["tab3_koneen_nimi"] = ""
-                st.session_state["tab3_koneen_id"] = ""
+                # Nollaa vain selectboxit, älä tekstikenttiä!
                 st.session_state["tab3_poisto_ryhma"] = ""
                 st.session_state["tab3_poisto_kone"] = ""
                 st.experimental_rerun()
@@ -471,5 +469,6 @@ with tab3:
             st.info("Ryhmässä ei koneita.")
     else:
         st.info("Ei ryhmiä.")
+
 
 
