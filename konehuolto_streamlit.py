@@ -230,113 +230,131 @@ with tab1:
 with tab2:
     st.header("Huoltohistoria")
 
-    if huolto_df.empty:
-        st.info("Ei huoltoja tallennettu vielä.")
+    # 1. Ryhmävalinta (myös "Kaikki")
+    ryhmat_lista = sorted(list(koneet_data.keys()))
+    valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ["Kaikki"] + ryhmat_lista, key="hist_ryhma")
+    if valittu_ryhma == "Kaikki":
+        df_suodatettu = huolto_df.copy()
     else:
-        # Esikatselun ✔ merkki suoraan dataframeen
-        def fmt_ok(x):
-            return "✔" if str(x).strip().upper() == "OK" else x
+        df_suodatettu = huolto_df[huolto_df["Ryhmä"] == valittu_ryhma]
 
-        def esikatselu_df(df):
-            rows = []
-            rivinro = 1
-            for kone in df["Kone"].unique():
-                kone_df = df[df["Kone"] == kone]
-                eka = True
-                for idx, row in kone_df.iterrows():
-                    rivi = [
-                        rivinro if eka else "",
-                        kone if eka else row.get("ID", ""),
-                        row.get("Ryhmä", ""),
-                        row.get("Tunnit", ""),
-                        row.get("Päivämäärä", ""),
-                        row.get("Vapaa teksti", "")
-                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                    rows.append(rivi)
-                    eka = False
-                    rivinro += 1
-                # Koneen jälkeen tyhjä rivi (visuaalinen väli)
+    # 2. Konevalinta (myös "Kaikki")
+    koneet_lista = df_suodatettu["Kone"].dropna().unique().tolist()
+    valittu_kone = st.selectbox("Suodata koneen mukaan", ["Kaikki"] + koneet_lista, key="hist_kone")
+    if valittu_kone == "Kaikki":
+        df = df_suodatettu.copy()
+    else:
+        df = df_suodatettu[df_suodatettu["Kone"] == valittu_kone]
+
+    # 3. Esikatselun rakentaminen (vihreä ✔ myös esikatseluun)
+    def fmt_ok(x):
+        return "✔" if str(x).strip().upper() == "OK" else x
+
+    def esikatselu_df(df):
+        rows = []
+        rivinro = 1
+        viime_kone = None
+        for idx, row in df.iterrows():
+            kone = row.get("Kone", "")
+            kone_id = row.get("ID-numero", "")
+            ryhma = row.get("Ryhmä", "")
+            tunnit = row.get("Tunnit", "")
+            pvm = row.get("Päivämäärä", "")
+            vapaa = row.get("Vapaa teksti", "")
+            huoltodata = [fmt_ok(row.get(k, "")) for k in LYHENTEET]
+
+            if kone != viime_kone and viime_kone is not None:
                 rows.append([""] * (6 + len(LYHENTEET)))
-            columns = ["Rivi", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
-            return pd.DataFrame(rows, columns=columns)
+                rivinro += 1
 
-        df_naytto = esikatselu_df(huolto_df)
-        st.dataframe(df_naytto, hide_index=True)
+            # 1. rivi: koneen nimi, ryhmä, tunnit, pvm, vapaa, huollot
+            rows.append([rivinro, kone, ryhma, tunnit, pvm, vapaa, *huoltodata])
+            rivinro += 1
+            # 2. rivi: ID, muut tyhjiä, huollot
+            rows.append([rivinro, kone_id, "", "", "", "", *huoltodata])
+            rivinro += 1
+            viime_kone = kone
 
-        # --- PDF-nappi ja -luonti
-        def lataa_pdf(df):
-            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-            from reportlab.lib.styles import ParagraphStyle
-            from reportlab.lib.pagesizes import landscape, A4
-            from reportlab.lib import colors
-            from reportlab.lib.units import mm
+        columns = ["Rivi", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+        return pd.DataFrame(rows, columns=columns)
 
-            buffer = BytesIO()
-            otsikkotyyli = ParagraphStyle(
-                name='OtsikkoIso', fontName='Helvetica-Bold', fontSize=16, leading=22, alignment=0
-            )
-            otsikko = Paragraph("Huoltohistoria", otsikkotyyli)
-            paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle(name="Norm", fontSize=10, alignment=2))
-            otsikko_paivays_table = Table(
-                [[otsikko, paivays]], colWidths=[380, 200]
-            )
-            vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
-            normaali = ParagraphStyle("Normaali", fontName="Helvetica", fontSize=8, alignment=0)
+    df_naytto = esikatselu_df(df)
+    st.dataframe(df_naytto, hide_index=True)
 
-            data = [df.columns.tolist()]
-            for _, row in df.iterrows():
-                pdf_row = []
-                for j, col in enumerate(df.columns):
-                    value = row[col]
-                    if str(value).strip().upper() in ["✔", "OK"]:
-                        pdf_row.append(Paragraph('<font color="green">✔</font>', vihrea))
-                    else:
-                        pdf_row.append(str(value))
-                data.append(pdf_row)
+    # 4. PDF-nappi (vihreä ✔ myös PDF:ään)
+    def lataa_pdf(df):
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib.pagesizes import landscape, A4
+        from reportlab.lib import colors
+        from reportlab.lib.units import mm
 
-            sarakeleveys = [32, 110, 90, 55, 70, 110] + [32] * (len(df.columns) - 6)
-            table = Table(data, colWidths=sarakeleveys, repeatRows=1)
-            ts = TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#51c987")),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('FONTSIZE', (0, 0), (-1, -1), 8),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ])
-            for i in range(1, len(data)):
-                if i % 2 == 1:
-                    ts.add('BACKGROUND', (0, i), (-1, i), colors.whitesmoke)
-            table.setStyle(ts)
+        buffer = BytesIO()
+        otsikkotyyli = ParagraphStyle(
+            name='OtsikkoIso', fontName='Helvetica-Bold', fontSize=16, leading=22, alignment=0
+        )
+        otsikko = Paragraph("Huoltohistoria", otsikkotyyli)
+        paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle(name="Norm", fontSize=10, alignment=2))
+        otsikko_paivays_table = Table(
+            [[otsikko, paivays]], colWidths=[380, 200]
+        )
+        vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
+        normaali = ParagraphStyle("Normaali", fontName="Helvetica", fontSize=8, alignment=0)
 
-            def pdf_footer(canvas, doc):
-                canvas.saveState()
-                canvas.setFont('Helvetica', 8)
-                canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
-                canvas.restoreState()
+        data = [df.columns.tolist()]
+        for _, row in df.iterrows():
+            pdf_row = []
+            for j, col in enumerate(df.columns):
+                value = row[col]
+                if str(value).strip() == "✔":
+                    pdf_row.append(Paragraph('<font color="green">✔</font>', vihrea))
+                else:
+                    pdf_row.append(str(value))
+            data.append(pdf_row)
 
-            doc = SimpleDocTemplate(
-                buffer, pagesize=landscape(A4),
-                topMargin=35, leftMargin=40, rightMargin=40, bottomMargin=35
-            )
-            elements = [
-                Spacer(1, 12),
-                otsikko_paivays_table,
-                Spacer(1, 12),
-                table
-            ]
-            doc.build(elements, onFirstPage=pdf_footer, onLaterPages=pdf_footer)
-            buffer.seek(0)
-            return buffer
+        sarakeleveys = [32, 110, 90, 55, 70, 110] + [32] * (len(df.columns) - 6)
+        table = Table(data, colWidths=sarakeleveys, repeatRows=1)
+        ts = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#51c987")),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ])
+        for i in range(1, len(data)):
+            if i % 2 == 1:
+                ts.add('BACKGROUND', (0, i), (-1, i), colors.whitesmoke)
+        table.setStyle(ts)
 
-        st.markdown("#### Lataa huoltohistoria PDF-tiedostona")
-        if st.button("Lataa PDF", key="lataa_pdf_nappi"):
-            pdfdata = lataa_pdf(df_naytto)
-            st.download_button(
-                label="Lataa PDF-tiedosto",
-                data=pdfdata,
-                file_name="huoltohistoria.pdf",
-                mime="application/pdf"
-            )
+        def pdf_footer(canvas, doc):
+            canvas.saveState()
+            canvas.setFont('Helvetica', 8)
+            canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
+            canvas.restoreState()
+
+        doc = SimpleDocTemplate(
+            buffer, pagesize=landscape(A4),
+            topMargin=35, leftMargin=40, rightMargin=40, bottomMargin=35
+        )
+        elements = [
+            Spacer(1, 12),
+            otsikko_paivays_table,
+            Spacer(1, 12),
+            table
+        ]
+        doc.build(elements, onFirstPage=pdf_footer, onLaterPages=pdf_footer)
+        buffer.seek(0)
+        return buffer
+
+    st.markdown("#### Lataa huoltohistoria PDF-tiedostona")
+    if st.button("Lataa PDF", key="lataa_pdf_nappi"):
+        pdfdata = lataa_pdf(df_naytto)
+        st.download_button(
+            label="Lataa PDF-tiedosto",
+            data=pdfdata,
+            file_name="huoltohistoria.pdf",
+            mime="application/pdf"
+        )
 
 
 
