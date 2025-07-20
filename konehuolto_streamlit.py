@@ -12,7 +12,30 @@ from reportlab.lib import colors
 from reportlab.lib.units import mm, inch
 import base64
 import uuid
+import streamlit as st
 
+# Kirjautumistila: aseta oletus
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+if "login_failed" not in st.session_state:
+    st.session_state["login_failed"] = False
+
+def login():
+    st.title("Kirjaudu sisään")
+    username = st.text_input("Käyttäjätunnus", key="user_login")
+    password = st.text_input("Salasana", type="password", key="pw_login")
+    if st.button("Kirjaudu"):
+        if username == "mattipa" and password == "jdtoro#":
+            st.session_state["logged_in"] = True
+            st.session_state["login_failed"] = False
+        else:
+            st.session_state["login_failed"] = True
+
+if not st.session_state["logged_in"]:
+    login()
+    if st.session_state["login_failed"]:
+        st.error("Väärä käyttäjätunnus tai salasana.")
+    st.stop()
 # Kirjautuminen
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
