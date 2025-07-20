@@ -222,8 +222,14 @@ with tab1:
                     yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
                     tallenna_huollot(yhdistetty)
                     st.success("Huolto tallennettu!")
-                    st.session_state.lomake_reset += 1
+
+                    # ---- AUTOMAATTINEN RESET ----
+                    st.session_state["kayttotunnit"] = ""
+                    st.session_state["vapaa"] = ""
+                    for pitkä in HUOLTOKOHTEET:
+                        st.session_state[f"valinta_{pitkä}"] = "--"
                     st.experimental_rerun()
+
 
 ### --- TAB2: Huoltohistoria ja PDF
 with tab2:
