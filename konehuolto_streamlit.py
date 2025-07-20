@@ -174,7 +174,6 @@ with tab1:
             )
             valittu_kone_nimi = kone_valinta.split(" (ID:")[0]
             kone_id = koneet_df2[koneet_df2["nimi"] == valittu_kone_nimi]["id"].values[0]
-
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
             kone_id = ""
