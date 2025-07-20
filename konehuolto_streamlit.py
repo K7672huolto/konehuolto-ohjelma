@@ -399,7 +399,7 @@ with tab3:
             tallenna_koneet(uusi_koneet_df)
             st.success(f"Kone {uusi_nimi} lisätty ryhmään {kaytettava_ryhma}")
             # --- Kaikkien kenttien resetointi ---
-            st.session_state["tab3_uusi_ryhma"] = ryhmat_lista[0] if ryhmat_lista else ""
+            st.session_state["tab3_uusi_ryhma"] = "Uusi ryhmä"
             st.session_state["tab3_uusi_ryhman_nimi"] = ""
             st.session_state["tab3_koneen_nimi"] = ""
             st.session_state["tab3_koneen_id"] = ""
@@ -424,7 +424,7 @@ with tab3:
                 tallenna_koneet(uusi_koneet_df)
                 st.success(f"Kone {poisto_nimi} poistettu.")
                 # --- Resetoi myös poiston jälkeen ---
-                st.session_state["tab3_uusi_ryhma"] = ryhmat_lista[0] if ryhmat_lista else ""
+                st.session_state["tab3_uusi_ryhma"] = "Uusi ryhmä"
                 st.session_state["tab3_uusi_ryhman_nimi"] = ""
                 st.session_state["tab3_koneen_nimi"] = ""
                 st.session_state["tab3_koneen_id"] = ""
@@ -453,5 +453,6 @@ with tab3:
             st.info("Ryhmässä ei koneita.")
     else:
         st.info("Ei ryhmiä.")
+
 
 
