@@ -231,7 +231,7 @@ with tab1:
 with tab2:
     st.header("Huoltohistoria")
 
-    # 1. Ryhmävalinta (myös "Kaikki")
+    # Ryhmä- ja konevalinta
     ryhmat_lista = sorted(list(koneet_data.keys()))
     valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ["Kaikki"] + ryhmat_lista, key="hist_ryhma")
     if valittu_ryhma == "Kaikki":
@@ -239,7 +239,6 @@ with tab2:
     else:
         df_suodatettu = huolto_df[huolto_df["Ryhmä"] == valittu_ryhma]
 
-    # 2. Konevalinta (myös "Kaikki")
     koneet_lista = df_suodatettu["Kone"].dropna().unique().tolist()
     valittu_kone = st.selectbox("Suodata koneen mukaan", ["Kaikki"] + koneet_lista, key="hist_kone")
     if valittu_kone == "Kaikki":
@@ -247,44 +246,51 @@ with tab2:
     else:
         df = df_suodatettu[df_suodatettu["Kone"] == valittu_kone]
 
-    # 3. Esikatselun rakentaminen (vihreä ✔ myös esikatseluun)
+    # Esikatselun rakenne: koneen nimi ja id samaan sarakkeeseen
     def fmt_ok(x):
         return "✔" if str(x).strip().upper() == "OK" else x
 
     def esikatselu_df(df):
         rows = []
-        rivinro = 1
         viime_kone = None
-        for idx, row in df.iterrows():
-            kone = row.get("Kone", "")
-            kone_id = row.get("ID-numero", "")
-            ryhma = row.get("Ryhmä", "")
-            tunnit = row.get("Tunnit", "")
-            pvm = row.get("Päivämäärä", "")
-            vapaa = row.get("Vapaa teksti", "")
-            huoltodata = [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-
-            if kone != viime_kone and viime_kone is not None:
-                rows.append([""] * (6 + len(LYHENTEET)))
-                rivinro += 1
-
-            # 1. rivi: koneen nimi, ryhmä, tunnit, pvm, vapaa, huollot
-            rows.append([rivinro, kone, ryhma, tunnit, pvm, vapaa, *huoltodata])
-            rivinro += 1
-            # 2. rivi: ID, muut tyhjiä, huollot
-            rows.append([rivinro, kone_id, "", "", "", "", *huoltodata])
-            rivinro += 1
-            viime_kone = kone
-
-        columns = ["Rivi", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+        for kone in df["Kone"].unique():
+            kone_df = df[df["Kone"] == kone]
+            eka = True
+            for idx, row in kone_df.iterrows():
+                # Rivi 1: koneen nimi, muu tiedot
+                if eka:
+                    rivi1 = [
+                        kone,
+                        row.get("Ryhmä", ""),
+                        row.get("Tunnit", ""),
+                        row.get("Päivämäärä", ""),
+                        row.get("Vapaa teksti", ""),
+                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
+                    rows.append(rivi1)
+                    # Rivi 2: ID, muuten tyhjää
+                    rivi2 = [
+                        row.get("ID", ""),
+                        "", "", "", "",
+                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
+                    rows.append(rivi2)
+                    eka = False
+                else:
+                    # Muut huollot (vain arvot, kone+ID tyhjiä)
+                    rivi = [
+                        "", "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")
+                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
+                    rows.append(rivi)
+            # Koneen jälkeen visuaalinen tyhjä rivi
+            rows.append([""] * (5 + len(LYHENTEET)))
+        columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
         return pd.DataFrame(rows, columns=columns)
 
     df_naytto = esikatselu_df(df)
     st.dataframe(df_naytto, hide_index=True)
 
-    # 4. PDF-nappi (vihreä ✔ myös PDF:ään)
+    # PDF-nappi
     def lataa_pdf(df):
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
         from reportlab.lib.styles import ParagraphStyle
         from reportlab.lib.pagesizes import landscape, A4
         from reportlab.lib import colors
@@ -300,7 +306,6 @@ with tab2:
             [[otsikko, paivays]], colWidths=[380, 200]
         )
         vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
-        normaali = ParagraphStyle("Normaali", fontName="Helvetica", fontSize=8, alignment=0)
 
         data = [df.columns.tolist()]
         for _, row in df.iterrows():
@@ -313,7 +318,7 @@ with tab2:
                     pdf_row.append(str(value))
             data.append(pdf_row)
 
-        sarakeleveys = [32, 110, 90, 55, 70, 110] + [32] * (len(df.columns) - 6)
+        sarakeleveys = [110, 90, 55, 70, 110] + [32] * (len(df.columns) - 5)
         table = Table(data, colWidths=sarakeleveys, repeatRows=1)
         ts = TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#51c987")),
@@ -356,6 +361,7 @@ with tab2:
             file_name="huoltohistoria.pdf",
             mime="application/pdf"
         )
+
 
 
 
