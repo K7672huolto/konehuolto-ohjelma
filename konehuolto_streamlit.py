@@ -277,59 +277,48 @@ with tab2:
             return "✔" if str(x).strip().upper() == "OK" else x
 
         def uusi_esikatselu_df(df):
+            """Näytä huollot: yksi rivi per huolto ja tyhjä rivi koneiden väliin."""
             rows = []
             for kone in df["Kone"].unique():
                 kone_df = df[df["Kone"] == kone]
                 eka = True
                 for idx, row in kone_df.iterrows():
-                    if eka:
-                        # Ensimmäinen huolto: kone, ryhmä, tunnit, pvm, vapaa teksti, huollot
-                        rows.append(
-                            [row.get("Kone", ""), row.get("Ryhmä", ""), row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
-                        # Toinen rivi: ID, tunnit, pvm, vapaa teksti, huollot
-                        rows.append(
-                            [row.get("ID", ""), "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
-                        eka = False
-                    else:
-                        # Muut: tyhjä, tyhjä, tunnit, pvm, vapaa teksti, huollot
-                        rows.append(
-                            ["", "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
+                    rows.append(
+                        [row.get("Kone", "") if eka else "",
+                         row.get("Ryhmä", "") if eka else "",
+                         row.get("Tunnit", ""),
+                         row.get("Päivämäärä", ""),
+                         row.get("Vapaa teksti", "")]
+                        + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
+                    )
+                    eka = False
+                # Tyhjä rivi koneen jälkeen
+                rows.append([""] * (5 + len(LYHENTEET)))
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
             return pd.DataFrame(rows, columns=columns)
 
-        df_naytto = uusi_esikatselu_df(filt)
-        st.dataframe(df_naytto, hide_index=True)
 
-        # PDF (päivämäärä oikealle, otsikko vasemmalle)
         def tee_pdf_data(df):
+            """PDF-data: yksi rivi per huolto ja tyhjä rivi koneiden väliin."""
             rows = []
             for kone in df["Kone"].unique():
                 kone_df = df[df["Kone"] == kone]
                 eka = True
                 for idx, row in kone_df.iterrows():
-                    if eka:
-                        rows.append(
-                            [row.get("Kone", ""), row.get("Ryhmä", ""), row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
-                        rows.append(
-                            [row.get("ID", ""), "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
-                        eka = False
-                    else:
-                        rows.append(
-                            ["", "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
+                    rows.append(
+                        [row.get("Kone", "") if eka else "",
+                         row.get("Ryhmä", "") if eka else "",
+                         row.get("Tunnit", ""),
+                         row.get("Päivämäärä", ""),
+                         row.get("Vapaa teksti", "")]
+                        + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
+                    )
+                    eka = False
+                # Tyhjä rivi koneen jälkeen
+                rows.append([""] * (5 + len(LYHENTEET)))
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
             return [columns] + rows
+
 
         def lataa_pdf(df):
             buffer = BytesIO()
