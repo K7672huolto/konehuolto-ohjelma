@@ -227,28 +227,8 @@ with tab1:
                 if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
                     st.warning("Täytä kaikki kentät!")
                 else:
-                    uusi = {
-                        "ID": str(uuid.uuid4())[:8],
-                        "Kone": valittu_kone_nimi,
-                        "Ryhmä": valittu_ryhma,
-                        "Tunnit": kayttotunnit,
-                        "Päivämäärä": pvm.strftime("%d.%m.%Y"),
-                        "Vapaa teksti": vapaa,
-                    }
-                    for lyhenne in LYHENTEET:
-                        uusi[lyhenne] = valinnat[lyhenne]
-
-                    # *** KORJAUS: Tallennetaan vain oikeat sarakkeet ***
-                    sallitut_sarakkeet = ["ID", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
-                    uusi_df = pd.DataFrame([uusi])
-                    for sarake in sallitut_sarakkeet:
-                        if sarake not in huolto_df.columns:
-                            huolto_df[sarake] = ""
-                        if sarake not in uusi_df.columns:
-                            uusi_df[sarake] = ""
-                    yhdistetty = pd.concat([huolto_df[sallitut_sarakkeet], uusi_df[sallitut_sarakkeet]], ignore_index=True)
+                    # ...tallennuslogiikka...
                     tallenna_huollot(yhdistetty)
-                    st.success("Huolto tallennettu!")
                     st.session_state.lomake_reset += 1
                     st.experimental_rerun()
 
