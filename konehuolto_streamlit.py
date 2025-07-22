@@ -278,8 +278,13 @@ with tab2:
 
         def uusi_esikatselu_df(df):
             """Näytä huollot: yksi rivi per huolto ja tyhjä rivi koneiden väliin."""
+            if df.empty:
+                columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+                return pd.DataFrame(columns=columns)
+
             rows = []
-            for kone in df["Kone"].unique():
+            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+            for kone in df["Kone"].dropna().unique():
                 kone_df = df[df["Kone"] == kone]
                 eka = True
                 for idx, row in kone_df.iterrows():
@@ -292,16 +297,19 @@ with tab2:
                         + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
                     )
                     eka = False
-                # Tyhjä rivi koneen jälkeen
-                rows.append([""] * (5 + len(LYHENTEET)))
-            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+                if not kone_df.empty:
+                    rows.append([""] * len(columns))  # Tyhjä rivi koneen jälkeen
             return pd.DataFrame(rows, columns=columns)
+
 
 
         def tee_pdf_data(df):
             """PDF-data: yksi rivi per huolto ja tyhjä rivi koneiden väliin."""
+            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
             rows = []
-            for kone in df["Kone"].unique():
+            if df.empty:
+                return [columns]
+            for kone in df["Kone"].dropna().unique():
                 kone_df = df[df["Kone"] == kone]
                 eka = True
                 for idx, row in kone_df.iterrows():
@@ -314,10 +322,10 @@ with tab2:
                         + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
                     )
                     eka = False
-                # Tyhjä rivi koneen jälkeen
-                rows.append([""] * (5 + len(LYHENTEET)))
-            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+                if not kone_df.empty:
+                    rows.append([""] * len(columns))
             return [columns] + rows
+
 
 
         def lataa_pdf(df):
