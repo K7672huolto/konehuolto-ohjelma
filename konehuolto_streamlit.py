@@ -200,7 +200,6 @@ with tab1:
             valittu_kone_nimi = ""
 
         if kone_id:
-            # Automaattiresetointi: laske tallennusmäärä
             if "lomake_reset" not in st.session_state:
                 st.session_state.lomake_reset = 0
 
@@ -227,10 +226,29 @@ with tab1:
                 if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
                     st.warning("Täytä kaikki kentät!")
                 else:
-                    # ...tallennuslogiikka...
+                    uusi = {
+                        "ID": str(uuid.uuid4())[:8],
+                        "Kone": valittu_kone_nimi,
+                        "Ryhmä": valittu_ryhma,
+                        "Tunnit": kayttotunnit,
+                        "Päivämäärä": pvm.strftime("%d.%m.%Y"),
+                        "Vapaa teksti": vapaa,
+                    }
+                    for lyhenne in LYHENTEET:
+                        uusi[lyhenne] = valinnat[lyhenne]
+
+                    sallitut_sarakkeet = ["ID", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+                    uusi_df = pd.DataFrame([uusi])
+                    for sarake in sallitut_sarakkeet:
+                        if sarake not in huolto_df.columns:
+                            huolto_df[sarake] = ""
+                        if sarake not in uusi_df.columns:
+                            uusi_df[sarake] = ""
+                    yhdistetty = pd.concat([huolto_df[sallitut_sarakkeet], uusi_df[sallitut_sarakkeet]], ignore_index=True)
                     tallenna_huollot(yhdistetty)
                     st.session_state.lomake_reset += 1
                     st.experimental_rerun()
+
 
 
 # --- TAB2: Huoltohistoria ---
@@ -256,6 +274,27 @@ with tab2:
         def fmt_ok(x):
             return "✔" if str(x).strip().upper() == "OK" else x
 
+        with tab2:
+    st.header("Huoltohistoria")
+    if huolto_df.empty:
+        st.info("Ei huoltoja tallennettu vielä.")
+    else:
+        df = huolto_df.copy().reset_index(drop=True)
+        # Suodatus
+        ryhmat = ["Kaikki"] + sorted(df["Ryhmä"].unique())
+        valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ryhmat, key="tab2_ryhma")
+        if valittu_ryhma == "Kaikki":
+            filt = df
+        else:
+            filt = df[df["Ryhmä"] == valittu_ryhma]
+        koneet = ["Kaikki"] + sorted(filt["Kone"].unique())
+        valittu_kone = st.selectbox("Suodata koneen mukaan", koneet, key="tab2_kone")
+        if valittu_kone != "Kaikki":
+            filt = filt[filt["Kone"] == valittu_kone]
+
+        def fmt_ok(x):
+            return "✔" if str(x).strip().upper() == "OK" else x
+
         def uusi_esikatselu_df(df):
             rows = []
             for kone in df["Kone"].unique():
@@ -263,19 +302,16 @@ with tab2:
                 eka = True
                 for idx, row in kone_df.iterrows():
                     if eka:
-                        # Ensimmäinen huolto: kone, ryhmä, tunnit, pvm, vapaa teksti, huollot
                         rows.append(
                             [row.get("Kone", ""), row.get("Ryhmä", ""), row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
                             + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
                         )
-                        # Toinen rivi: ID, tunnit, pvm, vapaa teksti, huollot
                         rows.append(
                             [row.get("ID", ""), "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
                             + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
                         )
                         eka = False
                     else:
-                        # Muut: tyhjä, tyhjä, tunnit, pvm, vapaa teksti, huollot
                         rows.append(
                             ["", "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
                             + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
@@ -285,6 +321,42 @@ with tab2:
 
         df_naytto = uusi_esikatselu_df(filt)
         st.dataframe(df_naytto, hide_index=True)
+
+        # HUOLTOJEN MUOKKAUS JA POISTO
+        muokattava_id = st.selectbox("Valitse muokattava huolto (ID)", [""] + df["ID"].astype(str).tolist(), key="tab2_muokkaa_id")
+        if muokattava_id:
+            valittu = df[df["ID"].astype(str) == muokattava_id].iloc[0]
+            uusi_tunnit = st.text_input("Tunnit/km", value=valittu.get("Tunnit", ""), key="tab2_edit_tunnit")
+            uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""), key="tab2_edit_pvm")
+            uusi_vapaa = st.text_input("Vapaa teksti", value=valittu.get("Vapaa teksti", ""), key="tab2_edit_vapaa")
+            uusi_kohta = {}
+            for pitkä, lyhenne in HUOLTOKOHTEET.items():
+                vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
+                arvo = str(valittu.get(lyhenne, "--")).strip().upper()
+                vaihtoehdot_upper = [v.upper() for v in vaihtoehdot]
+                if arvo not in vaihtoehdot_upper:
+                    arvo = "--"
+                uusi_kohta[lyhenne] = st.selectbox(
+                    pitkä,
+                    vaihtoehdot,
+                    index=vaihtoehdot_upper.index(arvo),
+                    key=f"tab2_edit_{lyhenne}"
+                )
+            if st.button("Tallenna muutokset", key="tab2_tallenna_muokkaa"):
+                idx = df[df["ID"].astype(str) == muokattava_id].index[0]
+                df.at[idx, "Tunnit"] = uusi_tunnit
+                df.at[idx, "Päivämäärä"] = uusi_pvm
+                df.at[idx, "Vapaa teksti"] = uusi_vapaa
+                for lyhenne in uusi_kohta:
+                    df.at[idx, lyhenne] = uusi_kohta[lyhenne]
+                tallenna_huollot(df)
+                st.success("Tallennettu!")
+                st.experimental_rerun()
+            if st.button("Poista tämä huolto", key="tab2_poista_huolto"):
+                df = df[df["ID"].astype(str) != muokattava_id]
+                tallenna_huollot(df)
+                st.success("Huolto poistettu!")
+                st.experimental_rerun()
 
         # PDF (päivämäärä oikealle, otsikko vasemmalle)
         def tee_pdf_data(df):
