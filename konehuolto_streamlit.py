@@ -251,30 +251,8 @@ with tab1:
 
 
 
-# --- TAB2: Huoltohistoria ---
+
 with tab2:
-    st.header("Huoltohistoria")
-    if huolto_df.empty:
-        st.info("Ei huoltoja tallennettu vielä.")
-    else:
-        df = huolto_df.copy().reset_index(drop=True)
-        # Valinnat
-        ryhmat = ["Kaikki"] + sorted(df["Ryhmä"].unique())
-        valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ryhmat, key="tab2_ryhma")
-        if valittu_ryhma == "Kaikki":
-            filt = df
-        else:
-            filt = df[df["Ryhmä"] == valittu_ryhma]
-        koneet = ["Kaikki"] + sorted(filt["Kone"].unique())
-        valittu_kone = st.selectbox("Suodata koneen mukaan", koneet, key="tab2_kone")
-        if valittu_kone != "Kaikki":
-            filt = filt[filt["Kone"] == valittu_kone]
-
-        # *** UUSI ESIKATSELU ***
-        def fmt_ok(x):
-            return "✔" if str(x).strip().upper() == "OK" else x
-
-        with tab2:
     st.header("Huoltohistoria")
     if huolto_df.empty:
         st.info("Ei huoltoja tallennettu vielä.")
