@@ -117,7 +117,9 @@ def tallenna_huollot(df):
     ws = get_gsheet_connection("Huollot")
     ws.clear()
     if not df.empty:
-        ws.update([df.columns.values.tolist()] + df.values.tolist())
+        # Tämä muuttaa kaikki NaN/None arvot tyhjiksi merkkijonoiksi
+        cleaned = df.fillna("").astype(str)
+        ws.update([cleaned.columns.values.tolist()] + cleaned.values.tolist())
 
 def lue_koneet():
     try:
@@ -136,7 +138,9 @@ def tallenna_koneet(df):
     ws = get_gsheet_connection("Koneet")
     ws.clear()
     if not df.empty:
-        ws.update([df.columns.values.tolist()] + df.values.tolist())
+        cleaned = df.fillna("").astype(str)
+        ws.update([cleaned.columns.values.tolist()] + cleaned.values.tolist())
+
 
 def ryhmat_ja_koneet(df):
     d = {}
