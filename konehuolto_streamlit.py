@@ -115,15 +115,9 @@ def lue_huollot():
 
 def tallenna_huollot(df):
     ws = get_gsheet_connection("Huollot")
-    # Muunna kaikki NaN tyhjiksi merkkijonoiksi
-    cleaned = df.fillna("").astype(str)
-    if not cleaned.empty and "ID" in cleaned.columns and "Kone" in cleaned.columns:
-        ws.clear()
-        ws.update([cleaned.columns.values.tolist()] + cleaned.values.tolist())
-    elif cleaned.empty:
-        # Tyhjennetään sheet (esim. jos käyttäjä poisti kaikki rivit)
-        ws.clear()
-        ws.update([["ID", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET])
+    ws.clear()
+    if not df.empty:
+        ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 
 def lue_koneet():
