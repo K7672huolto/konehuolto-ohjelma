@@ -5,10 +5,72 @@ import json
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 from io import BytesIO
+from reportlab.lib.pagesizes import landscape, A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import inch, mm
 import base64
 import uuid
 
+# --------- LOGIN -----------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+def login():
+    st.title("Kirjaudu sisään")
+    username = st.text_input("Käyttäjätunnus")
+    password = st.text_input("Salasana", type="password")
+    login_clicked = st.button("Kirjaudu")
+    if login_clicked:
+        if username == "mattipa" and password == "jdtoro#":
+            st.session_state.logged_in = True
+        else:
+            st.error("Väärä käyttäjätunnus tai salasana.")
+
+if not st.session_state.logged_in:
+    login()
+    st.stop()
+
+
+# --------- TAUSTAKUVA (banneri) ----------
+def taustakuva_local(filename):
+    try:
+        with open(filename, "rb") as image_file:
+            encoded = base64.b64encode(image_file.read()).decode()
+        return f"data:image/jpg;base64,{encoded}"
+    except:
+        return ""
+
+kuva_base64 = taustakuva_local("tausta.png")
+st.set_page_config(page_title="Konehuolto", layout="wide")
+st.markdown("""
+    <style>
+    .block-container { padding-top: 0rem !important; margin-top: 0rem !important; }
+    </style>
+""", unsafe_allow_html=True)
+st.markdown(
+    f"""
+    <div style="
+        background-image: url('{kuva_base64}');
+        background-size: cover;
+        background-position: center;
+        padding: 85px 0 85px 0;
+        margin-bottom: 0.2em;
+        text-align: center;
+        width: 100vw;
+        position: relative;
+        left: 50%; right: 50%; margin-left: -50vw; margin-right: -50vw;
+    ">
+        <h2 style="color:#fff; text-shadow:2px 2px 6px #333;">Konehuolto-ohjelma (selainversio)</h2>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+st.markdown("---")
+
 # Huoltokohteet
+# HUOLTOKOHTEET
 HUOLTOKOHTEET = {
     "Moottoriöljy": "MÖ",
     "Hydrauliöljy": "HÖ",
