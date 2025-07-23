@@ -19,18 +19,19 @@ if "logged_in" not in st.session_state:
 
 def login():
     st.title("Kirjaudu sisään")
-    username = st.text_input("Käyttäjätunnus", key="login_user")
-    password = st.text_input("Salasana", type="password", key="login_pw")
-    if st.button("Kirjaudu", key="login_btn"):
+    username = st.text_input("Käyttäjätunnus")
+    password = st.text_input("Salasana", type="password")
+    login_clicked = st.button("Kirjaudu")
+    if login_clicked:
         if username == "mattipa" and password == "jdtoro#":
             st.session_state.logged_in = True
-            st.experimental_rerun()
         else:
             st.error("Väärä käyttäjätunnus tai salasana.")
 
 if not st.session_state.logged_in:
     login()
     st.stop()
+
 
 # --------- TAUSTAKUVA (banneri) ----------
 def taustakuva_local(filename):
