@@ -5,71 +5,10 @@ import json
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 from io import BytesIO
-from reportlab.lib.pagesizes import landscape, A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib import colors
-from reportlab.lib.units import inch, mm
 import base64
 import uuid
 
-# --------- LOGIN -----------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-def login():
-    st.title("Kirjaudu sisään")
-    username = st.text_input("Käyttäjätunnus")
-    password = st.text_input("Salasana", type="password")
-    login_clicked = st.button("Kirjaudu")
-    if login_clicked:
-        if username == "mattipa" and password == "jdtoro#":
-            st.session_state.logged_in = True
-        else:
-            st.error("Väärä käyttäjätunnus tai salasana.")
-
-if not st.session_state.logged_in:
-    login()
-    st.stop()
-
-
-# --------- TAUSTAKUVA (banneri) ----------
-def taustakuva_local(filename):
-    try:
-        with open(filename, "rb") as image_file:
-            encoded = base64.b64encode(image_file.read()).decode()
-        return f"data:image/jpg;base64,{encoded}"
-    except:
-        return ""
-
-kuva_base64 = taustakuva_local("tausta.png")
-st.set_page_config(page_title="Konehuolto", layout="wide")
-st.markdown("""
-    <style>
-    .block-container { padding-top: 0rem !important; margin-top: 0rem !important; }
-    </style>
-""", unsafe_allow_html=True)
-st.markdown(
-    f"""
-    <div style="
-        background-image: url('{kuva_base64}');
-        background-size: cover;
-        background-position: center;
-        padding: 85px 0 85px 0;
-        margin-bottom: 0.2em;
-        text-align: center;
-        width: 100vw;
-        position: relative;
-        left: 50%; right: 50%; margin-left: -50vw; margin-right: -50vw;
-    ">
-        <h2 style="color:#fff; text-shadow:2px 2px 6px #333;">Konehuolto-ohjelma (selainversio)</h2>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-st.markdown("---")
-
-# --------- MÄÄRITTELYT -----------
+# Huoltokohteet
 HUOLTOKOHTEET = {
     "Moottoriöljy": "MÖ",
     "Hydrauliöljy": "HÖ",
@@ -85,7 +24,7 @@ HUOLTOKOHTEET = {
 }
 LYHENTEET = list(HUOLTOKOHTEET.values())
 
-# --------- GOOGLE SHEETS API --------
+# Google Sheets API
 def get_gsheet_connection(tabname):
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -115,10 +54,17 @@ def lue_huollot():
 
 def tallenna_huollot(df):
     ws = get_gsheet_connection("Huollot")
-    ws.clear()
-    if not df.empty:
-        ws.update([df.columns.values.tolist()] + df.values.tolist())
-
+    cleaned = df.fillna("").astype(str)
+    if not cleaned.empty and set(["ID", "Kone", "Ryhmä"]).issubset(cleaned.columns):
+        try:
+            ws.clear()
+            ws.update([cleaned.columns.values.tolist()] + cleaned.values.tolist())
+        except Exception as e:
+            st.error(f"Tallennus epäonnistui: {e}")
+    elif cleaned.empty:
+        # Tyhjennetään sheet mutta jätetään otsikot
+        ws.clear()
+        ws.update([["ID", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET])
 
 def lue_koneet():
     try:
@@ -135,11 +81,16 @@ def lue_koneet():
 
 def tallenna_koneet(df):
     ws = get_gsheet_connection("Koneet")
-    ws.clear()
-    if not df.empty:
-        cleaned = df.fillna("").astype(str)
-        ws.update([cleaned.columns.values.tolist()] + cleaned.values.tolist())
-
+    cleaned = df.fillna("").astype(str)
+    if not cleaned.empty and set(["Kone", "ID", "Ryhmä"]).issubset(cleaned.columns):
+        try:
+            ws.clear()
+            ws.update([cleaned.columns.values.tolist()] + cleaned.values.tolist())
+        except Exception as e:
+            st.error(f"Koneiden tallennus epäonnistui: {e}")
+    elif cleaned.empty:
+        ws.clear()
+        ws.update([["Kone", "ID", "Ryhmä"]])
 
 def ryhmat_ja_koneet(df):
     d = {}
@@ -147,13 +98,32 @@ def ryhmat_ja_koneet(df):
         d.setdefault(r["Ryhmä"], []).append({"Kone": r["Kone"], "ID": r["ID"]})
     return d
 
+# -------------- LOGIN esimerkki (voit vaihtaa oman loginin)
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+def login():
+    st.title("Kirjaudu sisään")
+    username = st.text_input("Käyttäjätunnus")
+    password = st.text_input("Salasana", type="password")
+    login_clicked = st.button("Kirjaudu")
+    if login_clicked:
+        if username == "mattipa" and password == "jdtoro#":
+            st.session_state.logged_in = True
+        else:
+            st.error("Väärä käyttäjätunnus tai salasana.")
+
+if not st.session_state.logged_in:
+    login()
+    st.stop()
+
+# -------------- KÄYTTÖLOHKO, esim. HUOLTOJEN LISÄYS ----------------
 huolto_df = lue_huollot()
 koneet_df = lue_koneet()
 koneet_data = ryhmat_ja_koneet(koneet_df) if not koneet_df.empty else {}
 
 tab1, tab2, tab3 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 Koneet ja ryhmät"])
 
-# ------------------- TAB 1: LISÄÄ HUOLTO -------------------
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
     ryhmat_lista = sorted(list(koneet_data.keys()))
@@ -164,7 +134,7 @@ with tab1:
         koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            koneet_df2["valinta"] = koneet_df2["Kone"]  # Näytetään vain nimi
+            koneet_df2["valinta"] = koneet_df2["Kone"]
             kone_valinta = st.radio(
                 "Valitse kone:",
                 koneet_df2["valinta"].tolist(),
@@ -202,7 +172,7 @@ with tab1:
                     uusi = {
                         "ID": str(uuid.uuid4())[:8],
                         "Kone": valittu_kone_nimi,
-                        "ID-numero": kone_id,  # Ei Sheetissä, mutta voidaan hyödyntää!
+                        "ID-numero": kone_id,
                         "Ryhmä": valittu_ryhma,
                         "Tunnit": kayttotunnit,
                         "Päivämäärä": pvm.strftime("%d.%m.%Y"),
@@ -212,9 +182,15 @@ with tab1:
                         uusi[lyhenne] = valinnat[lyhenne]
                     uusi_df = pd.DataFrame([uusi])
                     yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
-                    tallenna_huollot(yhdistetty)
-                    st.success("Huolto tallennettu!")
-                    st.experimental_rerun()
+                    try:
+                        tallenna_huollot(yhdistetty)
+                        st.success("Huolto tallennettu!")
+                        st.experimental_rerun()
+                    except Exception as e:
+                        st.error(f"Tallennus epäonnistui: {e}")
+
+# ... jatka ohjelmaa tab2, tab3 ...
+
 
 # ------------------- TAB 2: HUOLTOHISTORIA -------------------
 with tab2:
