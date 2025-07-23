@@ -221,7 +221,7 @@ with tab1:
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
-                            st.experimental_rerun()  # Huom: uudemmalla Streamlitillä käytä st.rerun()
+                            st.rerun()  # Huom: uudemmalla Streamlitillä käytä st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
 
