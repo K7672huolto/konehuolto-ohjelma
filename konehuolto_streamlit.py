@@ -258,46 +258,49 @@ with tab2:
         st.info("Ei huoltoja tallennettu vielä.")
     else:
         df = huolto_df.copy().reset_index(drop=True)
+
         # Suodatus
         ryhmat = ["Kaikki"] + sorted(df["Ryhmä"].unique())
         valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ryhmat, key="tab2_ryhma")
-        if valittu_ryhma == "Kaikki":
-            filt = df
-        else:
-            filt = df[df["Ryhmä"] == valittu_ryhma]
+        filt = df if valittu_ryhma == "Kaikki" else df[df["Ryhmä"] == valittu_ryhma]
         koneet = ["Kaikki"] + sorted(filt["Kone"].unique())
         valittu_kone = st.selectbox("Suodata koneen mukaan", koneet, key="tab2_kone")
-        if valittu_kone != "Kaikki":
-            filt = filt[filt["Kone"] == valittu_kone]
+        filt = filt if valittu_kone == "Kaikki" else filt[filt["Kone"] == valittu_kone]
 
+        # Luo esikatselu-data
         def fmt_ok(x):
             return "✔" if str(x).strip().upper() == "OK" else x
 
-        def uusi_esikatselu_df(df):
+        def muodosta_esikatselu(df):
             rows = []
-            for kone in df["Kone"].unique():
-                kone_df = df[df["Kone"] == kone]
-                eka = True
-                for idx, row in kone_df.iterrows():
-                    if eka:
-                        rows.append(
-                            [row.get("Kone", ""), row.get("Ryhmä", ""), row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
-                        rows.append(
-                            [row.get("ID", ""), "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
-                        eka = False
-                    else:
-                        rows.append(
-                            ["", "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
+            prev_kone = None
+            for _, row in df.iterrows():
+                # Jos kone vaihtuu, lisää tyhjä rivi paitsi ensimmäiselle koneelle
+                if prev_kone is not None and row["Kone"] != prev_kone:
+                    rows.append([""] * (5 + len(LYHENTEET)))
+                if row["Kone"] != prev_kone:
+                    # Koneen nimi & ryhmä + eka huolto
+                    rows.append([
+                        row.get("Kone", ""),
+                        row.get("Ryhmä", ""),
+                        row.get("Tunnit", ""),
+                        row.get("Päivämäärä", ""),
+                        row.get("Vapaa teksti", ""),
+                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET])
+                    # ID + eka huolto
+                    rows.append([
+                        row.get("ID", ""), "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")
+                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET])
+                else:
+                    # Muut huollot
+                    rows.append([
+                        "", "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")
+                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET])
+                prev_kone = row["Kone"]
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
             return pd.DataFrame(rows, columns=columns)
 
-        df_naytto = uusi_esikatselu_df(filt)
+        df_naytto = muodosta_esikatselu(filt)
         st.dataframe(df_naytto, hide_index=True)
 
         # HUOLTOJEN MUOKKAUS JA POISTO
@@ -336,28 +339,29 @@ with tab2:
                 st.success("Huolto poistettu!")
                 st.experimental_rerun()
 
-        # PDF (päivämäärä oikealle, otsikko vasemmalle)
+        # PDF-lataus
         def tee_pdf_data(df):
             rows = []
-            for kone in df["Kone"].unique():
-                kone_df = df[df["Kone"] == kone]
-                eka = True
-                for idx, row in kone_df.iterrows():
-                    if eka:
-                        rows.append(
-                            [row.get("Kone", ""), row.get("Ryhmä", ""), row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
-                        rows.append(
-                            [row.get("ID", ""), "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
-                        eka = False
-                    else:
-                        rows.append(
-                            ["", "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")]
-                            + [fmt_ok(row.get(k, "")) for k in LYHENTEET]
-                        )
+            prev_kone = None
+            for _, row in df.iterrows():
+                if prev_kone is not None and row["Kone"] != prev_kone:
+                    rows.append([""] * (5 + len(LYHENTEET)))
+                if row["Kone"] != prev_kone:
+                    rows.append([
+                        row.get("Kone", ""),
+                        row.get("Ryhmä", ""),
+                        row.get("Tunnit", ""),
+                        row.get("Päivämäärä", ""),
+                        row.get("Vapaa teksti", ""),
+                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET])
+                    rows.append([
+                        row.get("ID", ""), "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")
+                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET])
+                else:
+                    rows.append([
+                        "", "", row.get("Tunnit", ""), row.get("Päivämäärä", ""), row.get("Vapaa teksti", "")
+                    ] + [fmt_ok(row.get(k, "")) for k in LYHENTEET])
+                prev_kone = row["Kone"]
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
             return [columns] + rows
 
@@ -425,13 +429,14 @@ with tab2:
             return buffer
 
         if st.button("Lataa PDF", key="lataa_pdf_tab2"):
-            pdfdata = lataa_pdf(df_naytto)
+            pdfdata = lataa_pdf(filt)
             st.download_button(
                 label="Lataa PDF-tiedosto",
                 data=pdfdata,
                 file_name="huoltohistoria.pdf",
                 mime="application/pdf"
             )
+
 
 
 # --- TAB3: Koneiden ja ryhmien hallinta ---
