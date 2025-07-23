@@ -202,35 +202,35 @@ with tab1:
                     )
             vapaa = st.text_input("Vapaa teksti", key="vapaa")
             if st.button("Tallenna huolto", key="tallenna_huolto_tab1"):
-            if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
-                st.warning("Täytä kaikki kentät!")
-            else:
-                uusi = {
-                    "HuoltoID": str(uuid.uuid4())[:8],
-                    "Kone": valittu_kone_nimi,
-                    "ID": kone_id,
-                    "Ryhmä": valittu_ryhma,
-                    "Tunnit": kayttotunnit,
-                    "Päivämäärä": pvm.strftime("%d.%m.%Y"),
-                    "Vapaa teksti": vapaa,
-                }
-                for lyhenne in LYHENTEET:
-                    uusi[lyhenne] = valinnat[lyhenne]
-                uusi_df = pd.DataFrame([uusi])
-                yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
-                try:
-                    tallenna_huollot(yhdistetty)
-                    st.success("Huolto tallennettu!")
+                if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
+                    st.warning("Täytä kaikki kentät!")
+                else:
+                    uusi = {
+                        "HuoltoID": str(uuid.uuid4())[:8],
+                        "Kone": valittu_kone_nimi,
+                        "ID": kone_id,
+                        "Ryhmä": valittu_ryhma,
+                        "Tunnit": kayttotunnit,
+                        "Päivämäärä": pvm.strftime("%d.%m.%Y"),
+                        "Vapaa teksti": vapaa,
+                    }
+                    for lyhenne in LYHENTEET:
+                        uusi[lyhenne] = valinnat[lyhenne]
+                    uusi_df = pd.DataFrame([uusi])
+                    yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
+                    try:
+                        tallenna_huollot(yhdistetty)
+                        st.success("Huolto tallennettu!")
 
-                    # ---- TÄSSÄ LOMAKKEEN NOLLAUS ----
-                    st.session_state["kayttotunnit"] = ""
-                    st.session_state["vapaa"] = ""
-                    for pitkä in HUOLTOKOHTEET:
-                        st.session_state[f"valinta_{pitkä}"] = "--"
+                        # ---- TÄSSÄ LOMAKKEEN NOLLAUS ----
+                        st.session_state["kayttotunnit"] = ""
+                        st.session_state["vapaa"] = ""
+                        for pitkä in HUOLTOKOHTEET:
+                            st.session_state[f"valinta_{pitkä}"] = "--"
 
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Tallennus epäonnistui: {e}")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Tallennus epäonnistui: {e}")
 
 
 # ... jatka ohjelmaa tab2, tab3 ...
