@@ -202,28 +202,36 @@ with tab1:
                     )
             vapaa = st.text_input("Vapaa teksti", key="vapaa")
             if st.button("Tallenna huolto", key="tallenna_huolto_tab1"):
-                if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
-                    st.warning("Täytä kaikki kentät!")
-                else:
-                    uusi = {
-                        "HuoltoID": str(uuid.uuid4())[:8],  # tämä on HUOLLON oma tunniste, ei koneen ID!
-                        "Kone": valittu_kone_nimi,
-                        "ID": kone_id,
-                        "Ryhmä": valittu_ryhma,
-                        "Tunnit": kayttotunnit,
-                        "Päivämäärä": pvm.strftime("%d.%m.%Y"),
-                        "Vapaa teksti": vapaa,
-                    }
-                    for lyhenne in LYHENTEET:
-                        uusi[lyhenne] = valinnat[lyhenne]
-                    uusi_df = pd.DataFrame([uusi])
-                    yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
-                    try:
-                        tallenna_huollot(yhdistetty)
-                        st.success("Huolto tallennettu!")
-                        st.rerun()  # Käytä tätä, EI experimental_rerun
-                    except Exception as e:
-                        st.error(f"Tallennus epäonnistui: {e}")
+            if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
+                st.warning("Täytä kaikki kentät!")
+            else:
+                uusi = {
+                    "HuoltoID": str(uuid.uuid4())[:8],
+                    "Kone": valittu_kone_nimi,
+                    "ID": kone_id,
+                    "Ryhmä": valittu_ryhma,
+                    "Tunnit": kayttotunnit,
+                    "Päivämäärä": pvm.strftime("%d.%m.%Y"),
+                    "Vapaa teksti": vapaa,
+                }
+                for lyhenne in LYHENTEET:
+                    uusi[lyhenne] = valinnat[lyhenne]
+                uusi_df = pd.DataFrame([uusi])
+                yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
+                try:
+                    tallenna_huollot(yhdistetty)
+                    st.success("Huolto tallennettu!")
+
+                    # ---- TÄSSÄ LOMAKKEEN NOLLAUS ----
+                    st.session_state["kayttotunnit"] = ""
+                    st.session_state["vapaa"] = ""
+                    for pitkä in HUOLTOKOHTEET:
+                        st.session_state[f"valinta_{pitkä}"] = "--"
+
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Tallennus epäonnistui: {e}")
+
 
 # ... jatka ohjelmaa tab2, tab3 ...
 
@@ -369,7 +377,7 @@ with tab2:
                 return uusi
 
             table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
-            sarakeleveys = [110, 80, 60, 80, 140, 32] + [32 for _ in LYHENTEET]
+            sarakeleveys = [80, 110, 80, 60, 80, 140] + [25 for _ in LYHENTEET]
             table = Table(table_data, repeatRows=1, colWidths=sarakeleveys)
             table_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
