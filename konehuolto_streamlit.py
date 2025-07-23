@@ -308,12 +308,12 @@ with tab2:
                     df.at[idx, lyhenne] = uusi_kohta[lyhenne]
                 tallenna_huollot(df)
                 st.success("Tallennettu!")
-                st.experimental_rerun()
+                st.rerun()
             if st.button("Poista tämä huolto", key="tab2_poista_huolto"):
                 df = df[df["ID"].astype(str) != valittu_id]
                 tallenna_huollot(df)
                 st.success("Huolto poistettu!")
-                st.experimental_rerun()
+                st.rerun()
 
         # PDF-lataus
         def tee_pdf_data(df):
@@ -424,7 +424,7 @@ with tab3:
             uusi_koneet_df = pd.concat([koneet_df, uusi], ignore_index=True)
             tallenna_koneet(uusi_koneet_df)
             st.success(f"Kone {uusi_nimi} lisätty ryhmään {kaytettava_ryhma}")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.warning("Täytä kaikki kentät.")
 
@@ -438,7 +438,7 @@ with tab3:
                 uusi_koneet_df = koneet_df[~((koneet_df["Ryhmä"] == poisto_ryhma) & (koneet_df["Kone"] == poisto_nimi))]
                 tallenna_koneet(uusi_koneet_df)
                 st.success(f"Kone {poisto_nimi} poistettu.")
-                st.experimental_rerun()
+                st.rerun()
         else:
             st.info("Valitussa ryhmässä ei koneita.")
     else:
