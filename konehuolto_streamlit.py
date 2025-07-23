@@ -165,72 +165,66 @@ with tab1:
     if not ryhmat_lista:
         st.info("Ei yhtään koneryhmää vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
     else:
-        valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista)
+        valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="tab1_ryhma_select")
         koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            koneet_df2["valinta"] = koneet_df2["Kone"]
             kone_valinta = st.radio(
                 "Valitse kone:",
-                koneet_df2["valinta"].tolist(),
-                key="konevalinta_radio",
+                koneet_df2["Kone"].tolist(),
+                key="tab1_konevalinta_radio",
                 index=0 if len(koneet_df2) > 0 else None
             )
-            valittu_kone_nimi = kone_valinta
-            # **Nyt otetaan ID suoraan Sheetistä eikä generoida uutta**
-            kone_id = koneet_df2[koneet_df2["Kone"] == valittu_kone_nimi]["ID"].values[0]
+            kone_id = koneet_df2[koneet_df2["Kone"] == kone_valinta]["ID"].values[0]
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
             kone_id = ""
-            valittu_kone_nimi = ""
+            kone_valinta = ""
+        
         if kone_id:
-            col1, col2 = st.columns(2)
-            with col1:
-                kayttotunnit = st.text_input("Tunnit/km", key="kayttotunnit")
-            with col2:
-                pvm = st.date_input("Päivämäärä", value=datetime.today(), key="pvm")
-            st.markdown("#### Huoltokohteet")
-            vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
-            valinnat = {}
-            cols_huolto = st.columns(6)
-            for i, pitkä in enumerate(HUOLTOKOHTEET):
-                with cols_huolto[i % 6]:
-                    valinnat[HUOLTOKOHTEET[pitkä]] = st.selectbox(
-                        f"{pitkä}:", vaihtoehdot,
-                        key=f"valinta_{pitkä}",
-                        index=0
-                    )
-            vapaa = st.text_input("Vapaa teksti", key="vapaa")
-            if st.button("Tallenna huolto", key="tallenna_huolto_tab1"):
-                if not valittu_ryhma or not valittu_kone_nimi or not kayttotunnit or not kone_id:
-                    st.warning("Täytä kaikki kentät!")
-                else:
-                    uusi = {
-                        "HuoltoID": str(uuid.uuid4())[:8],
-                        "Kone": valittu_kone_nimi,
-                        "ID": kone_id,
-                        "Ryhmä": valittu_ryhma,
-                        "Tunnit": kayttotunnit,
-                        "Päivämäärä": pvm.strftime("%d.%m.%Y"),
-                        "Vapaa teksti": vapaa,
-                    }
-                    for lyhenne in LYHENTEET:
-                        uusi[lyhenne] = valinnat[lyhenne]
-                    uusi_df = pd.DataFrame([uusi])
-                    yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
-                    try:
-                        tallenna_huollot(yhdistetty)
-                        st.success("Huolto tallennettu!")
+            with st.form(key="huolto_form"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    kayttotunnit = st.text_input("Tunnit/km")
+                with col2:
+                    pvm = st.date_input("Päivämäärä", value=datetime.today())
+                st.markdown("#### Huoltokohteet")
+                vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
+                valinnat = {}
+                cols_huolto = st.columns(6)
+                for i, pitkä in enumerate(HUOLTOKOHTEET):
+                    with cols_huolto[i % 6]:
+                        valinnat[HUOLTOKOHTEET[pitkä]] = st.selectbox(
+                            f"{pitkä}:", vaihtoehdot,
+                            key=f"form_valinta_{pitkä}",
+                            index=0
+                        )
+                vapaa = st.text_input("Vapaa teksti")
+                submit = st.form_submit_button("Tallenna huolto")
+                if submit:
+                    if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
+                        st.warning("Täytä kaikki kentät!")
+                    else:
+                        uusi = {
+                            "HuoltoID": str(uuid.uuid4())[:8],  # HUOLLON oma tunniste
+                            "Kone": kone_valinta,
+                            "ID": kone_id,
+                            "Ryhmä": valittu_ryhma,
+                            "Tunnit": kayttotunnit,
+                            "Päivämäärä": pvm.strftime("%d.%m.%Y"),
+                            "Vapaa teksti": vapaa,
+                        }
+                        for lyhenne in LYHENTEET:
+                            uusi[lyhenne] = valinnat[lyhenne]
+                        uusi_df = pd.DataFrame([uusi])
+                        yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
+                        try:
+                            tallenna_huollot(yhdistetty)
+                            st.success("Huolto tallennettu!")
+                            st.experimental_rerun()  # Huom: uudemmalla Streamlitillä käytä st.rerun()
+                        except Exception as e:
+                            st.error(f"Tallennus epäonnistui: {e}")
 
-                        # ---- TÄSSÄ LOMAKKEEN NOLLAUS ----
-                        st.session_state["kayttotunnit"] = ""
-                        st.session_state["vapaa"] = ""
-                        for pitkä in HUOLTOKOHTEET:
-                            st.session_state[f"valinta_{pitkä}"] = "--"
-
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Tallennus epäonnistui: {e}")
 
 
 # ... jatka ohjelmaa tab2, tab3 ...
