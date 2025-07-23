@@ -69,8 +69,6 @@ st.markdown(
 )
 st.markdown("---")
 
-# Huoltokohteet
-# HUOLTOKOHTEET
 HUOLTOKOHTEET = {
     "Moottoriöljy": "MÖ",
     "Hydrauliöljy": "HÖ",
@@ -86,7 +84,6 @@ HUOLTOKOHTEET = {
 }
 LYHENTEET = list(HUOLTOKOHTEET.values())
 
-# Google Sheets API
 def get_gsheet_connection(tabname):
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -100,15 +97,20 @@ def get_gsheet_connection(tabname):
     sheet = client.open(st.secrets["SHEET_NIMI"])
     return sheet.worksheet(tabname)
 
+def lue_koneet():
+    ws = get_gsheet_connection("Koneet")
+    data = ws.get_all_records()
+    df = pd.DataFrame(data)
+    for kentta in ["Kone", "ID", "Ryhmä"]:
+        if kentta not in df.columns:
+            df[kentta] = ""
+    return df
+
 def lue_huollot():
-    try:
-        ws = get_gsheet_connection("Huollot")
-        data = ws.get_all_records()
-        df = pd.DataFrame(data)
-    except Exception as e:
-        st.error(f"Huoltojen Google Sheet puuttuu tai ei lukuoikeuksia. ({e})")
-        df = pd.DataFrame()
-    pakolliset = ["ID", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+    ws = get_gsheet_connection("Huollot")
+    data = ws.get_all_records()
+    df = pd.DataFrame(data)
+    pakolliset = ["HuoltoID", "Kone", "ID", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
     for kentta in pakolliset:
         if kentta not in df.columns:
             df[kentta] = ""
@@ -117,42 +119,12 @@ def lue_huollot():
 def tallenna_huollot(df):
     ws = get_gsheet_connection("Huollot")
     cleaned = df.fillna("").astype(str)
-    if not cleaned.empty and set(["ID", "Kone", "Ryhmä"]).issubset(cleaned.columns):
-        try:
-            ws.clear()
-            ws.update([cleaned.columns.values.tolist()] + cleaned.values.tolist())
-        except Exception as e:
-            st.error(f"Tallennus epäonnistui: {e}")
-    elif cleaned.empty:
-        # Tyhjennetään sheet mutta jätetään otsikot
+    if not cleaned.empty:
         ws.clear()
-        ws.update([["ID", "Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET])
-
-def lue_koneet():
-    try:
-        ws = get_gsheet_connection("Koneet")
-        data = ws.get_all_records()
-        df = pd.DataFrame(data)
-    except Exception as e:
-        st.error(f"Koneiden Google Sheet puuttuu tai ei lukuoikeuksia. ({e})")
-        df = pd.DataFrame()
-    for kentta in ["Kone", "ID", "Ryhmä"]:
-        if kentta not in df.columns:
-            df[kentta] = ""
-    return df
-
-def tallenna_koneet(df):
-    ws = get_gsheet_connection("Koneet")
-    cleaned = df.fillna("").astype(str)
-    if not cleaned.empty and set(["Kone", "ID", "Ryhmä"]).issubset(cleaned.columns):
-        try:
-            ws.clear()
-            ws.update([cleaned.columns.values.tolist()] + cleaned.values.tolist())
-        except Exception as e:
-            st.error(f"Koneiden tallennus epäonnistui: {e}")
+        ws.update([cleaned.columns.values.tolist()] + cleaned.values.tolist())
     elif cleaned.empty:
         ws.clear()
-        ws.update([["Kone", "ID", "Ryhmä"]])
+        ws.update([["HuoltoID", "Kone", "ID", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET])
 
 def ryhmat_ja_koneet(df):
     d = {}
@@ -160,7 +132,7 @@ def ryhmat_ja_koneet(df):
         d.setdefault(r["Ryhmä"], []).append({"Kone": r["Kone"], "ID": r["ID"]})
     return d
 
-# -------------- LOGIN esimerkki (voit vaihtaa oman loginin)
+# LOGIN (voit käyttää omaasi)
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -179,20 +151,21 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# -------------- KÄYTTÖLOHKO, esim. HUOLTOJEN LISÄYS ----------------
+# -------- Pääohjelma alkaa --------
 huolto_df = lue_huollot()
 koneet_df = lue_koneet()
 koneet_data = ryhmat_ja_koneet(koneet_df) if not koneet_df.empty else {}
 
 tab1, tab2, tab3 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 Koneet ja ryhmät"])
 
+# ------------- TAB 1: LISÄÄ HUOLTO -------------
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
     ryhmat_lista = sorted(list(koneet_data.keys()))
     if not ryhmat_lista:
         st.info("Ei yhtään koneryhmää vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
     else:
-        valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="ryhma_selectbox")
+        valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista)
         koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
@@ -204,6 +177,7 @@ with tab1:
                 index=0 if len(koneet_df2) > 0 else None
             )
             valittu_kone_nimi = kone_valinta
+            # **Nyt otetaan ID suoraan Sheetistä eikä generoida uutta**
             kone_id = koneet_df2[koneet_df2["Kone"] == valittu_kone_nimi]["ID"].values[0]
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
@@ -232,9 +206,9 @@ with tab1:
                     st.warning("Täytä kaikki kentät!")
                 else:
                     uusi = {
-                        "ID": str(uuid.uuid4())[:8],
+                        "HuoltoID": str(uuid.uuid4())[:8],  # tämä on HUOLLON oma tunniste, ei koneen ID!
                         "Kone": valittu_kone_nimi,
-                        "ID-numero": kone_id,
+                        "ID": kone_id,
                         "Ryhmä": valittu_ryhma,
                         "Tunnit": kayttotunnit,
                         "Päivämäärä": pvm.strftime("%d.%m.%Y"),
@@ -247,7 +221,7 @@ with tab1:
                     try:
                         tallenna_huollot(yhdistetty)
                         st.success("Huolto tallennettu!")
-                        st.experimental_rerun()
+                        st.rerun()  # Käytä tätä, EI experimental_rerun
                     except Exception as e:
                         st.error(f"Tallennus epäonnistui: {e}")
 
