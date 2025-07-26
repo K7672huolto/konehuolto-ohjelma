@@ -180,14 +180,14 @@ with tab1:
             st.info("Valitussa ryhmässä ei ole koneita.")
             kone_id = ""
             kone_valinta = ""
-        
+
         if kone_id:
             with st.form(key="huolto_form"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    kayttotunnit = st.text_input("Tunnit/km")
+                    kayttotunnit = st.text_input("Tunnit/km", key="form_tunnit")
                 with col2:
-                    pvm = st.date_input("Päivämäärä", value=datetime.today())
+                    pvm = st.date_input("Päivämäärä", value=datetime.today(), key="form_pvm")
                 st.markdown("#### Huoltokohteet")
                 vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
                 valinnat = {}
@@ -199,14 +199,14 @@ with tab1:
                             key=f"form_valinta_{pitkä}",
                             index=0
                         )
-                vapaa = st.text_input("Vapaa teksti")
+                vapaa = st.text_input("Vapaa teksti", key="form_vapaa")
                 submit = st.form_submit_button("Tallenna huolto")
                 if submit:
                     if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
                         st.warning("Täytä kaikki kentät!")
                     else:
                         uusi = {
-                            "HuoltoID": str(uuid.uuid4())[:8],  # HUOLLON oma tunniste
+                            "HuoltoID": str(uuid.uuid4())[:8],
                             "Kone": kone_valinta,
                             "ID": kone_id,
                             "Ryhmä": valittu_ryhma,
@@ -221,9 +221,10 @@ with tab1:
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
-                            st.rerun()  # Huom: uudemmalla Streamlitillä käytä st.rerun()
+                            st.rerun()  # Streamlit >= 1.25
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
