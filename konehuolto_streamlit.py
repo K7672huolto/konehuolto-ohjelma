@@ -382,7 +382,7 @@ with tab2:
                 return uusi
 
             table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
-            sarakeleveys = [110, 120, 55, 60, 110] + [32 for _ in LYHENTEET]
+            sarakeleveys = [110, 80, 55, 60, 160] + [25 for _ in LYHENTEET]
             table = Table(table_data, repeatRows=1, colWidths=sarakeleveys)
             table_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
