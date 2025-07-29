@@ -330,7 +330,7 @@ with tab2:
                 df = df[df["HuoltoID"].astype(str) != valittu_huoltoid]
                 tallenna_huollot(df)
                 st.success("Huolto poistettu!")
-                st.rerun())
+                st.rerun()
 
         # PDF-lataus
         def tee_pdf_data(df):
