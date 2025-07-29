@@ -115,6 +115,12 @@ def lue_huollot():
         if kentta not in df.columns:
             df[kentta] = ""
     return df
+def tallenna_koneet(df):
+    ws = get_gsheet_connection("Koneet")
+    ws.clear()
+    if not df.empty:
+        # Päivitä sarakeotsikot ja datarivit Sheetiin
+        ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 def tallenna_huollot(df):
     ws = get_gsheet_connection("Huollot")
