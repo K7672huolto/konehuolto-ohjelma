@@ -291,11 +291,15 @@ with tab2:
         st.dataframe(df_naytto, hide_index=True, use_container_width=True)
 
         # MUOKKAUS ja POISTO
-        id_valinnat = [f"{row['Kone']} ({row['ID']})" for _, row in df.iterrows()]
+        id_valinnat = [
+            f"{row['Kone']} ({row['ID']}) {row['Päivämäärä']} (HuoltoID: {row['HuoltoID']})"
+            for _, row in df.iterrows()
+        ]
         valittu_id_valinta = st.selectbox("Valitse muokattava huolto", [""] + id_valinnat, key="tab2_muokkaa_id")
+
         if valittu_id_valinta:
-            valittu_id = valittu_id_valinta.split("(")[-1].replace(")", "")
-            valittu = df[df["ID"].astype(str) == valittu_id].iloc[0]
+            valittu_huoltoid = valittu_id_valinta.split("HuoltoID: ")[-1].replace(")", "").strip()
+            valittu = df[df["HuoltoID"].astype(str) == valittu_huoltoid].iloc[0]
             uusi_tunnit = st.text_input("Tunnit/km", value=valittu.get("Tunnit", ""), key="tab2_edit_tunnit")
             uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""), key="tab2_edit_pvm")
             uusi_vapaa = st.text_input("Vapaa teksti", value=valittu.get("Vapaa teksti", ""), key="tab2_edit_vapaa")
@@ -313,7 +317,7 @@ with tab2:
                     key=f"tab2_edit_{lyhenne}"
                 )
             if st.button("Tallenna muutokset", key="tab2_tallenna_muokkaa"):
-                idx = df[df["ID"].astype(str) == valittu_id].index[0]
+                idx = df[df["HuoltoID"].astype(str) == valittu_huoltoid].index[0]
                 df.at[idx, "Tunnit"] = uusi_tunnit
                 df.at[idx, "Päivämäärä"] = uusi_pvm
                 df.at[idx, "Vapaa teksti"] = uusi_vapaa
@@ -323,10 +327,10 @@ with tab2:
                 st.success("Tallennettu!")
                 st.rerun()
             if st.button("Poista tämä huolto", key="tab2_poista_huolto"):
-                df = df[df["ID"].astype(str) != valittu_id]
+                df = df[df["HuoltoID"].astype(str) != valittu_huoltoid]
                 tallenna_huollot(df)
                 st.success("Huolto poistettu!")
-                st.rerun()
+                st.rerun())
 
         # PDF-lataus
         def tee_pdf_data(df):
