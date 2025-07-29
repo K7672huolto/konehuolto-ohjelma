@@ -238,6 +238,9 @@ with tab2:
         st.info("Ei huoltoja tallennettu vielä.")
     else:
         df = huolto_df.copy().reset_index(drop=True)
+        LYHENTEET = ["MÖ", "HÖ", "AÖ", "IS", "MS", "HS", "R", "PS", "T", "VÖ", "PÖ"]
+        COLUMNS = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
+
         # Suodatus
         ryhmat = ["Kaikki"] + sorted(df["Ryhmä"].unique())
         valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ryhmat, key="tab2_ryhma")
@@ -249,15 +252,13 @@ with tab2:
         # Esikatselu-data
         def muodosta_esikatselu(df):
             rows = []
-            prev_kone = None
-            prev_id = None
             for kone in df["Kone"].unique():
                 kone_df = df[df["Kone"] == kone]
                 if kone_df.empty:
                     continue
                 id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
                 ryhma = kone_df["Ryhmä"].iloc[0] if "Ryhmä" in kone_df.columns else ""
-                huolto_cols = ["Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+                huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
                 # 1. rivi: koneen nimi, ryhmä, 1. huolto
                 huolto1 = [str(kone_df.iloc[0].get(col, "")) for col in huolto_cols]
                 huolto1 = ["✔" if val.upper() == "OK" else val for val in huolto1]
@@ -276,10 +277,9 @@ with tab2:
                     rows.append(["", ""] + huoltoN)
                 # Tyhjä rivi koneiden väliin
                 rows.append([""] * (2 + len(huolto1)))
-            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
             if rows and all([cell == "" for cell in rows[-1]]):
                 rows.pop()
-            return pd.DataFrame(rows, columns=columns)
+            return pd.DataFrame(rows, columns=COLUMNS)
 
         df_naytto = muodosta_esikatselu(filt)
         st.dataframe(df_naytto, hide_index=True, use_container_width=True)
@@ -325,14 +325,13 @@ with tab2:
         # PDF-lataus
         def tee_pdf_data(df):
             rows = []
-            prev_kone = None
             for kone in df["Kone"].unique():
                 kone_df = df[df["Kone"] == kone]
                 if kone_df.empty:
                     continue
                 id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
                 ryhma = kone_df["Ryhmä"].iloc[0] if "Ryhmä" in kone_df.columns else ""
-                huolto_cols = ["Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+                huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
                 huolto1 = [str(kone_df.iloc[0].get(col, "")) for col in huolto_cols]
                 huolto1 = ["✔" if val.upper() == "OK" else val for val in huolto1]
                 rows.append([kone, ryhma] + huolto1)
@@ -347,10 +346,9 @@ with tab2:
                     huoltoN = ["✔" if val.upper() == "OK" else val for val in huoltoN]
                     rows.append(["", ""] + huoltoN)
                 rows.append([""] * (2 + len(huolto1)))
-            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
             if rows and all([cell == "" for cell in rows[-1]]):
                 rows.pop()
-            return [columns] + rows
+            return [COLUMNS] + rows
 
         def lataa_pdf(df):
             buffer = BytesIO()
@@ -382,7 +380,7 @@ with tab2:
                 return uusi
 
             table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
-            sarakeleveys = [110, 80, 55, 60, 160] + [25 for _ in LYHENTEET]
+            sarakeleveys = [110, 80, 55, 60] + [30 for _ in LYHENTEET] + [160]
             table = Table(table_data, repeatRows=1, colWidths=sarakeleveys)
             table_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
@@ -423,6 +421,7 @@ with tab2:
                 file_name="huoltohistoria.pdf",
                 mime="application/pdf"
             )
+
 
 
 # ------------------- TAB 3: KONEET JA RYHMÄT -------------------
