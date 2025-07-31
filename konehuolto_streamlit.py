@@ -514,11 +514,9 @@ with tab4:
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
     else:
-        # Listataan koneet ja haetaan viimeisin huolto, ryhmä sekä erotus
         koneet_nimet = koneet_df["Kone"].tolist()
         lista = []
         for i, kone in enumerate(koneet_nimet):
-            # Haetaan ryhmä koneet_df:stä
             ryhma = koneet_df[koneet_df["Kone"] == kone]["Ryhmä"].values[0] if "Ryhmä" in koneet_df.columns else ""
             huollot_koneelle = huolto_df[huolto_df["Kone"] == kone].copy()
             huollot_koneelle["Pvm_dt"] = pd.to_datetime(huollot_koneelle["Päivämäärä"], dayfirst=True, errors="coerce")
@@ -540,7 +538,7 @@ with tab4:
         df_tunnit = pd.DataFrame(lista)
         df_tunnit["Syötä uudet tunnit"] = [
             st.number_input(
-                f"Uudet tunnit ({row['Kone']})",
+                f"Uudet tunnit ({row['Kone']} / {row['Ryhmä']})",
                 min_value=0.0,
                 value=row["Viimeisin huolto (tunnit)"],
                 step=1.0,
@@ -573,6 +571,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
