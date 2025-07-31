@@ -193,7 +193,14 @@ with tab1:
                 with col1:
                     kayttotunnit = st.text_input("Tunnit/km", key="form_tunnit")
                 with col2:
-                    pvm = st.date_input("Päivämäärä", value=datetime.today(), key="form_pvm")
+                    pvm = st.date_input(
+                        "Päivämäärä",
+                        value=datetime.today(),
+                        min_value=datetime(1990, 1, 1),      # Valitse mistä vuodesta taaksepäin haluat sallia
+                        max_value=datetime(datetime.today().year + 10, 12, 31),
+                        key="pvm"
+                    )
+
                 st.markdown("#### Huoltokohteet")
                 vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
                 valinnat = {}
