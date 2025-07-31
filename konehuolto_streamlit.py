@@ -181,7 +181,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "➕ Lisää huolto", 
     "📋 Huoltohistoria", 
     "🛠 Koneet ja ryhmät",
-    "📊 Koneiden käyttötuntien tilanne"
+    "📊 Käyttötunnit"
 ])
 
 # ------------- TAB 1: LISÄÄ HUOLTO -------------
@@ -507,20 +507,22 @@ with tab3:
     else:
         st.info("Ei ryhmiä.")
 
-tab4 = st.tabs(["📊 Koneiden käyttötuntien tilanne"])[0]
+tab4 = st.tabs(["📊 Käyttotunnit"])[0]
 
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
     else:
-        # Listataan koneet ja lasketaan viimeisin huolto & erotus
+        # Listataan koneet ja haetaan viimeisin huolto sekä erotus
         koneet_nimet = koneet_df["Kone"].tolist()
         lista = []
         for i, kone in enumerate(koneet_nimet):
-            huollot_koneelle = huolto_df[huolto_df["Kone"] == kone]
+            huollot_koneelle = huolto_df[huolto_df["Kone"] == kone].copy()
+            huollot_koneelle["Pvm_dt"] = pd.to_datetime(huollot_koneelle["Päivämäärä"], dayfirst=True, errors="coerce")
+            huollot_koneelle = huollot_koneelle.sort_values("Pvm_dt", ascending=False)
             if not huollot_koneelle.empty:
-                viimeisin_huolto = huollot_koneelle.sort_values("Päivämäärä", ascending=False).iloc[0]
+                viimeisin_huolto = huollot_koneelle.iloc[0]
                 viimeiset_tunnit = float(str(viimeisin_huolto.get("Tunnit", 0)).replace(",", ".") or 0)
                 viimeisin_pvm = viimeisin_huolto.get("Päivämäärä", "")
             else:
@@ -567,6 +569,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
