@@ -177,7 +177,12 @@ huolto_df = lue_huollot()
 koneet_df = lue_koneet()
 koneet_data = ryhmat_ja_koneet(koneet_df) if not koneet_df.empty else {}
 
-tab1, tab2, tab3, tab4 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 Koneet ja ryhmät","⏱ Käyttötunnit"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "➕ Lisää huolto", 
+    "📋 Huoltohistoria", 
+    "🛠 Koneet ja ryhmät",
+    "📊 Koneiden käyttötuntien tilanne"
+])
 
 # ------------- TAB 1: LISÄÄ HUOLTO -------------
 with tab1:
@@ -502,43 +507,69 @@ with tab3:
     else:
         st.info("Ei ryhmiä.")
 
-tab4 = st.tabs(["⏱ Käyttötunnit"])[0]
+tab4 = st.tabs(["📊 Koneiden käyttötuntien tilanne"])[0]
 
 with tab4:
-    st.header("Käyttötuntien seuranta")
+    st.header("Kaikkien koneiden tunnit ja nykytila")
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
     else:
-        # Valitse kone ja hae ID ja ryhmä samaan syöttöön
-        koneet_lista = [f"{row['Kone']} (ID: {row['ID']})" for _, row in koneet_df.iterrows()]
-        kone_valinta = st.selectbox("Valitse kone", koneet_lista, key="tab4_kone")
-        valittu_kone_nimi = kone_valinta.split(" (ID:")[0].strip()
-        kone_id = kone_valinta.split("(ID:")[1].replace(")", "").strip()
-        ryhma = koneet_df[koneet_df["Kone"] == valittu_kone_nimi]["Ryhmä"].values[0]
+        # Haetaan jokaiselle koneelle viimeisin huollon tunti
+        koneet_nimet = koneet_df["Kone"].tolist()
+        lista = []
+        for idx, kone in enumerate(koneet_nimet):
+            kone_id = koneet_df.loc[koneet_df["Kone"] == kone, "ID"].values[0]
+            ryhma = koneet_df.loc[koneet_df["Kone"] == kone, "Ryhmä"].values[0]
+            huollot_koneelle = huolto_df[huolto_df["Kone"] == kone]
+            if not huollot_koneelle.empty:
+                viimeisin_huolto = huollot_koneelle.sort_values("Päivämäärä", ascending=False).iloc[0]
+                viimeiset_tunnit = float(str(viimeisin_huolto.get("Tunnit", 0)).replace(",", ".") or 0)
+                viimeisin_pvm = viimeisin_huolto.get("Päivämäärä", "")
+            else:
+                viimeiset_tunnit = 0
+                viimeisin_pvm = "-"
+            lista.append({
+                "Kone": kone,
+                "ID": kone_id,
+                "Ryhmä": ryhma,
+                "Viimeisin huolto (pvm)": viimeisin_pvm,
+                "Viimeisin huolto (tunnit)": viimeiset_tunnit,
+                "Nykyiset tunnit": viimeiset_tunnit  # tähän käyttäjä voi syöttää uuden
+            })
+        # Näytetään DataFrame, johon käyttäjä voi syöttää nykyiset tunnit
+        df_tunnit = pd.DataFrame(lista)
+        df_tunnit["Syötä uudet tunnit"] = [st.number_input(
+            f"Uudet tunnit ({r['Kone']})",
+            min_value=0.0,
+            value=r["Viimeisin huolto (tunnit)"],
+            step=1.0,
+            key=f"tab5_tunnit_{i}"
+        ) for i, r in df_tunnit.iterrows()]
 
-        # Hae viimeisin huolto
-        huollot_koneelle = huolto_df[huolto_df["Kone"] == valittu_kone_nimi]
-        if not huollot_koneelle.empty:
-            viimeisin_huolto = huollot_koneelle.sort_values("Päivämäärä", ascending=False).iloc[0]
-            viimeiset_tunnit = float(str(viimeisin_huolto.get("Tunnit", 0)).replace(",", ".") or 0)
-            viimeisin_pvm = viimeisin_huolto.get("Päivämäärä", "")
-        else:
-            viimeiset_tunnit = 0
-            viimeisin_pvm = "-"
+        st.dataframe(df_tunnit[["Kone", "ID", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit"]], hide_index=True)
 
-        st.write(f"**Viimeisin huolto:** {viimeisin_pvm} ({viimeiset_tunnit} h)")
-
-        # Käyttäjä syöttää uudet tunnit
-        uudet_tunnit = st.number_input("Syötä tämänhetkiset käyttötunnit", min_value=0.0, value=viimeiset_tunnit, step=1.0, key="tab4_uudet_tunnit")
-
-        erotus = uudet_tunnit - viimeiset_tunnit
-        st.write(f"**Tuntiero viime huoltoon:** {erotus:.1f} h")
-
-        if st.button("Tallenna käyttötunnit", key="tab4_tallenna_btn"):
+        if st.button("Tallenna kaikkien koneiden tunnit", key="tab5_tallenna_kaikki"):
             try:
-                tallenna_kayttotunnit(valittu_kone_nimi, kone_id, ryhma, viimeiset_tunnit, uudet_tunnit, erotus)
-                st.success("Käyttötunnit tallennettu Google Sheetiin!")
+                ws = get_gsheet_connection("Käyttötunnit")
+                nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+                values = ws.get_all_values()
+                # Otsikot vain jos tyhjä sheet
+                if not values or not any("Aika" in s for s in values[0]):
+                    ws.append_row(["Aika", "Kone", "ID", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"])
+                for idx, row in df_tunnit.iterrows():
+                    erotus = row["Syötä uudet tunnit"] - row["Viimeisin huolto (tunnit)"]
+                    ws.append_row([
+                        nyt,
+                        row["Kone"],
+                        row["ID"],
+                        row["Ryhmä"],
+                        row["Viimeisin huolto (tunnit)"],
+                        row["Syötä uudet tunnit"],
+                        erotus
+                    ])
+                st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
