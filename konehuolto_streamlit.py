@@ -14,23 +14,26 @@ import base64
 import uuid
 
 # --------- LOGIN -----------
+# --- Kirjautuminen, toimii yhdellä klikkauksella! ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-
-def login():
-    st.title("Kirjaudu sisään")
-    username = st.text_input("Käyttäjätunnus")
-    password = st.text_input("Salasana", type="password")
-    login_clicked = st.button("Kirjaudu")
-    if login_clicked:
-        if username == "mattipa" and password == "jdtoro#":
-            st.session_state.logged_in = True
-        else:
-            st.error("Väärä käyttäjätunnus tai salasana.")
+if "login_failed" not in st.session_state:
+    st.session_state.login_failed = False
 
 if not st.session_state.logged_in:
-    login()
+    st.title("Kirjaudu sisään")
+    username = st.text_input("Käyttäjätunnus", key="login_user")
+    password = st.text_input("Salasana", type="password", key="login_pw")
+    if st.button("Kirjaudu", key="login_btn"):
+        if username == "mattipa" and password == "jdtoro#":
+            st.session_state.logged_in = True
+            st.session_state.login_failed = False
+            st.experimental_rerun()   # HUOM: tämä varmistaa että sivu päivittyy sisäänkirjautuneeksi
+        else:
+            st.session_state.login_failed = True
+            st.error("Väärä käyttäjätunnus tai salasana.")
     st.stop()
+
 
 
 # --------- TAUSTAKUVA (banneri) ----------
