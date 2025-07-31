@@ -28,7 +28,8 @@ if not st.session_state.logged_in:
         if username == "mattipa" and password == "jdtoro#":
             st.session_state.logged_in = True
             st.session_state.login_failed = False
-            st.experimental_rerun()   # HUOM: tämä varmistaa että sivu päivittyy sisäänkirjautuneeksi
+            st.rerun()
+   # HUOM: tämä varmistaa että sivu päivittyy sisäänkirjautuneeksi
         else:
             st.session_state.login_failed = True
             st.error("Väärä käyttäjätunnus tai salasana.")
