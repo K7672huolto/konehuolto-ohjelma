@@ -514,10 +514,12 @@ with tab4:
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
     else:
-        # Listataan koneet ja haetaan viimeisin huolto sekä erotus
+        # Listataan koneet ja haetaan viimeisin huolto, ryhmä sekä erotus
         koneet_nimet = koneet_df["Kone"].tolist()
         lista = []
         for i, kone in enumerate(koneet_nimet):
+            # Haetaan ryhmä koneet_df:stä
+            ryhma = koneet_df[koneet_df["Kone"] == kone]["Ryhmä"].values[0] if "Ryhmä" in koneet_df.columns else ""
             huollot_koneelle = huolto_df[huolto_df["Kone"] == kone].copy()
             huollot_koneelle["Pvm_dt"] = pd.to_datetime(huollot_koneelle["Päivämäärä"], dayfirst=True, errors="coerce")
             huollot_koneelle = huollot_koneelle.sort_values("Pvm_dt", ascending=False)
@@ -530,6 +532,7 @@ with tab4:
                 viimeisin_pvm = "-"
             lista.append({
                 "Kone": kone,
+                "Ryhmä": ryhma,
                 "Viimeisin huolto (pvm)": viimeisin_pvm,
                 "Viimeisin huolto (tunnit)": viimeiset_tunnit,
             })
@@ -547,7 +550,7 @@ with tab4:
         df_tunnit["Erotus"] = df_tunnit["Syötä uudet tunnit"] - df_tunnit["Viimeisin huolto (tunnit)"]
 
         st.dataframe(
-            df_tunnit[["Kone", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]],
+            df_tunnit[["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]],
             hide_index=True
         )
 
@@ -557,11 +560,12 @@ with tab4:
                 nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
                 values = ws.get_all_values()
                 if not values or not any("Aika" in s for s in values[0]):
-                    ws.append_row(["Aika", "Kone", "Edellinen huolto", "Uudet tunnit", "Erotus"])
+                    ws.append_row(["Aika", "Kone", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"])
                 for idx, row in df_tunnit.iterrows():
                     ws.append_row([
                         nyt,
                         row["Kone"],
+                        row["Ryhmä"],
                         row["Viimeisin huolto (tunnit)"],
                         row["Syötä uudet tunnit"],
                         row["Erotus"]
@@ -569,6 +573,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
