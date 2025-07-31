@@ -136,6 +136,17 @@ def tallenna_huollot(df):
         ws.clear()
         ws.update([["HuoltoID", "Kone", "ID", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET])
 
+def tallenna_kayttotunnit(kone, kone_id, ryhma, ed_tunnit, uusi_tunnit, erotus):
+    ws = get_gsheet_connection("Käyttötunnit")
+    nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+    uusi_rivi = [[nyt, kone, kone_id, ryhma, ed_tunnit, uusi_tunnit, erotus]]
+    # Tarkista onko sheetissä otsikot, jos tyhjä, lisää otsikkorivi!
+    values = ws.get_all_values()
+    if not values or not any("Aika" in s for s in values[0]):
+        ws.append_row(["Aika", "Kone", "ID", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"])
+    ws.append_row(uusi_rivi[0])
+
+
 def ryhmat_ja_koneet(df):
     d = {}
     for _, r in df.iterrows():
@@ -166,7 +177,7 @@ huolto_df = lue_huollot()
 koneet_df = lue_koneet()
 koneet_data = ryhmat_ja_koneet(koneet_df) if not koneet_df.empty else {}
 
-tab1, tab2, tab3 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 Koneet ja ryhmät"])
+tab1, tab2, tab3, tab4 = st.tabs(["➕ Lisää huolto", "📋 Huoltohistoria", "🛠 Koneet ja ryhmät","⏱ Käyttötunnit"])
 
 # ------------- TAB 1: LISÄÄ HUOLTO -------------
 with tab1:
@@ -490,4 +501,44 @@ with tab3:
             st.info("Ryhmässä ei koneita.")
     else:
         st.info("Ei ryhmiä.")
+
+tab4 = st.tabs(["⏱ Käyttötunnit"])[0]
+
+with tab4:
+    st.header("Käyttötuntien seuranta")
+    if koneet_df.empty:
+        st.info("Ei koneita lisättynä.")
+    else:
+        # Valitse kone ja hae ID ja ryhmä samaan syöttöön
+        koneet_lista = [f"{row['Kone']} (ID: {row['ID']})" for _, row in koneet_df.iterrows()]
+        kone_valinta = st.selectbox("Valitse kone", koneet_lista, key="tab4_kone")
+        valittu_kone_nimi = kone_valinta.split(" (ID:")[0].strip()
+        kone_id = kone_valinta.split("(ID:")[1].replace(")", "").strip()
+        ryhma = koneet_df[koneet_df["Kone"] == valittu_kone_nimi]["Ryhmä"].values[0]
+
+        # Hae viimeisin huolto
+        huollot_koneelle = huolto_df[huolto_df["Kone"] == valittu_kone_nimi]
+        if not huollot_koneelle.empty:
+            viimeisin_huolto = huollot_koneelle.sort_values("Päivämäärä", ascending=False).iloc[0]
+            viimeiset_tunnit = float(str(viimeisin_huolto.get("Tunnit", 0)).replace(",", ".") or 0)
+            viimeisin_pvm = viimeisin_huolto.get("Päivämäärä", "")
+        else:
+            viimeiset_tunnit = 0
+            viimeisin_pvm = "-"
+
+        st.write(f"**Viimeisin huolto:** {viimeisin_pvm} ({viimeiset_tunnit} h)")
+
+        # Käyttäjä syöttää uudet tunnit
+        uudet_tunnit = st.number_input("Syötä tämänhetkiset käyttötunnit", min_value=0.0, value=viimeiset_tunnit, step=1.0, key="tab4_uudet_tunnit")
+
+        erotus = uudet_tunnit - viimeiset_tunnit
+        st.write(f"**Tuntiero viime huoltoon:** {erotus:.1f} h")
+
+        if st.button("Tallenna käyttötunnit", key="tab4_tallenna_btn"):
+            try:
+                tallenna_kayttotunnit(valittu_kone_nimi, kone_id, ryhma, viimeiset_tunnit, uudet_tunnit, erotus)
+                st.success("Käyttötunnit tallennettu Google Sheetiin!")
+            except Exception as e:
+                st.error(f"Tallennus epäonnistui: {e}")
+
 
