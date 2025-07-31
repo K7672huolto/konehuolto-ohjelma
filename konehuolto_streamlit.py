@@ -13,8 +13,7 @@ from reportlab.lib.units import inch, mm
 import base64
 import uuid
 
-# --------- LOGIN -----------
-# --- Kirjautuminen, toimii yhdellä klikkauksella! ---
+# --------- LOGIN ---------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "login_failed" not in st.session_state:
@@ -29,13 +28,10 @@ if not st.session_state.logged_in:
             st.session_state.logged_in = True
             st.session_state.login_failed = False
             st.rerun()
-   # HUOM: tämä varmistaa että sivu päivittyy sisäänkirjautuneeksi
         else:
             st.session_state.login_failed = True
             st.error("Väärä käyttäjätunnus tai salasana.")
     st.stop()
-
-
 
 # --------- TAUSTAKUVA (banneri) ----------
 def taustakuva_local(filename):
@@ -73,6 +69,7 @@ st.markdown(
 )
 st.markdown("---")
 
+# --------- MÄÄRITYKSET JA YHTEYDET ---------
 HUOLTOKOHTEET = {
     "Moottoriöljy": "MÖ",
     "Hydrauliöljy": "HÖ",
@@ -119,11 +116,11 @@ def lue_huollot():
         if kentta not in df.columns:
             df[kentta] = ""
     return df
+
 def tallenna_koneet(df):
     ws = get_gsheet_connection("Koneet")
     ws.clear()
     if not df.empty:
-        # Päivitä sarakeotsikot ja datarivit Sheetiin
         ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 def tallenna_huollot(df):
@@ -140,12 +137,11 @@ def tallenna_kayttotunnit(kone, kone_id, ryhma, ed_tunnit, uusi_tunnit, erotus):
     ws = get_gsheet_connection("Käyttötunnit")
     nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
     uusi_rivi = [[nyt, kone, kone_id, ryhma, ed_tunnit, uusi_tunnit, erotus]]
-    # Tarkista onko sheetissä otsikot, jos tyhjä, lisää otsikkorivi!
+    # Lisää otsikot jos sheet on tyhjä
     values = ws.get_all_values()
     if not values or not any("Aika" in s for s in values[0]):
         ws.append_row(["Aika", "Kone", "ID", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"])
     ws.append_row(uusi_rivi[0])
-
 
 def ryhmat_ja_koneet(df):
     d = {}
@@ -153,26 +149,6 @@ def ryhmat_ja_koneet(df):
         d.setdefault(r["Ryhmä"], []).append({"Kone": r["Kone"], "ID": r["ID"]})
     return d
 
-# LOGIN (voit käyttää omaasi)
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-def login():
-    st.title("Kirjaudu sisään")
-    username = st.text_input("Käyttäjätunnus")
-    password = st.text_input("Salasana", type="password")
-    login_clicked = st.button("Kirjaudu")
-    if login_clicked:
-        if username == "mattipa" and password == "jdtoro#":
-            st.session_state.logged_in = True
-        else:
-            st.error("Väärä käyttäjätunnus tai salasana.")
-
-if not st.session_state.logged_in:
-    login()
-    st.stop()
-
-# -------- Pääohjelma alkaa --------
 huolto_df = lue_huollot()
 koneet_df = lue_koneet()
 koneet_data = ryhmat_ja_koneet(koneet_df) if not koneet_df.empty else {}
@@ -184,7 +160,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Käyttötunnit"
 ])
 
-# ------------- TAB 1: LISÄÄ HUOLTO -------------
+# ----------- TAB 1: LISÄÄ HUOLTO -----------
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
     ryhmat_lista = sorted(list(koneet_data.keys()))
@@ -216,11 +192,10 @@ with tab1:
                     pvm = st.date_input(
                         "Päivämäärä",
                         value=datetime.today(),
-                        min_value=datetime(1990, 1, 1),      # Valitse mistä vuodesta taaksepäin haluat sallia
+                        min_value=datetime(1990, 1, 1),
                         max_value=datetime(datetime.today().year + 10, 12, 31),
                         key="pvm"
                     )
-
                 st.markdown("#### Huoltokohteet")
                 vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
                 valinnat = {}
@@ -254,24 +229,17 @@ with tab1:
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
-                            st.rerun()  # Streamlit >= 1.25
+                            st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
 
-
-
-
-# ... jatka ohjelmaa tab2, tab3 ...
-
-
-# ------------------- TAB 2: HUOLTOHISTORIA -------------------
+# ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
 with tab2:
     st.header("Huoltohistoria")
     if huolto_df.empty:
         st.info("Ei huoltoja tallennettu vielä.")
     else:
         df = huolto_df.copy().reset_index(drop=True)
-        LYHENTEET = ["MÖ", "HÖ", "AÖ", "IS", "MS", "HS", "R", "PS", "T", "VÖ", "PÖ"]
         COLUMNS = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
 
         # Suodatus
@@ -282,28 +250,26 @@ with tab2:
         valittu_kone = st.selectbox("Suodata koneen mukaan", koneet, key="tab2_kone")
         filt = filt if valittu_kone == "Kaikki" else filt[filt["Kone"] == valittu_kone]
 
-        # Esikatselu-data
+        # Esikatselu
         def muodosta_esikatselu(df):
             rows = []
             for kone in df["Kone"].unique():
                 kone_df = df[df["Kone"] == kone]
-                if kone_df.empty:
-                    continue
+                if kone_df.empty: continue
                 id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
                 ryhma = kone_df["Ryhmä"].iloc[0] if "Ryhmä" in kone_df.columns else ""
                 huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-                # 1. rivi: koneen nimi, ryhmä, 1. huolto
                 huolto1 = [str(kone_df.iloc[0].get(col, "")) for col in huolto_cols]
                 huolto1 = ["✔" if val.upper() == "OK" else val for val in huolto1]
                 rows.append([kone, ryhma] + huolto1)
-                # 2. rivi: ID, 2. huolto (tai tyhjät jos vain yksi huolto)
+                # 2. rivi: ID ja huolto2
                 if len(kone_df) > 1:
                     huolto2 = [str(kone_df.iloc[1].get(col, "")) for col in huolto_cols]
                     huolto2 = ["✔" if val.upper() == "OK" else val for val in huolto2]
                     rows.append([id_, ""] + huolto2)
                 else:
                     rows.append([id_, ""] + [""] * len(huolto1))
-                # Mahd. lisää huoltoja
+                # Lisää huoltorivit jos on enemmän
                 for i in range(2, len(kone_df)):
                     huoltoN = [str(kone_df.iloc[i].get(col, "")) for col in huolto_cols]
                     huoltoN = ["✔" if val.upper() == "OK" else val for val in huoltoN]
@@ -317,7 +283,7 @@ with tab2:
         df_naytto = muodosta_esikatselu(filt)
         st.dataframe(df_naytto, hide_index=True, use_container_width=True)
 
-        # MUOKKAUS ja POISTO
+        # MUOKKAUS JA POISTO
         id_valinnat = [
             f"{row['Kone']} ({row['ID']}) {row['Päivämäärä']} (HuoltoID: {row['HuoltoID']})"
             for _, row in df.iterrows()
@@ -364,8 +330,7 @@ with tab2:
             rows = []
             for kone in df["Kone"].unique():
                 kone_df = df[df["Kone"] == kone]
-                if kone_df.empty:
-                    continue
+                if kone_df.empty: continue
                 id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
                 ryhma = kone_df["Ryhmä"].iloc[0] if "Ryhmä" in kone_df.columns else ""
                 huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
@@ -459,9 +424,7 @@ with tab2:
                 mime="application/pdf"
             )
 
-
-
-# ------------------- TAB 3: KONEET JA RYHMÄT -------------------
+# ----------- TAB 3: KONEET JA RYHMÄT -----------
 with tab3:
     st.header("Koneiden ja ryhmien hallinta")
     uusi_ryhma = st.selectbox("Ryhmän valinta tai luonti", list(koneet_data.keys()) + ["Uusi ryhmä"], key="uusi_ryhma")
@@ -507,8 +470,7 @@ with tab3:
     else:
         st.info("Ei ryhmiä.")
 
-tab4 = st.tabs(["📊 Käyttotunnit"])[0]
-
+# ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
     if koneet_df.empty:
@@ -518,6 +480,7 @@ with tab4:
         lista = []
         for i, kone in enumerate(koneet_nimet):
             ryhma = koneet_df[koneet_df["Kone"] == kone]["Ryhmä"].values[0] if "Ryhmä" in koneet_df.columns else ""
+            kone_id = koneet_df[koneet_df["Kone"] == kone]["ID"].values[0] if "ID" in koneet_df.columns else ""
             huollot_koneelle = huolto_df[huolto_df["Kone"] == kone].copy()
             huollot_koneelle["Pvm_dt"] = pd.to_datetime(huollot_koneelle["Päivämäärä"], dayfirst=True, errors="coerce")
             huollot_koneelle = huollot_koneelle.sort_values("Pvm_dt", ascending=False)
@@ -531,6 +494,7 @@ with tab4:
             lista.append({
                 "Kone": kone,
                 "Ryhmä": ryhma,
+                "ID": kone_id,
                 "Viimeisin huolto (pvm)": viimeisin_pvm,
                 "Viimeisin huolto (tunnit)": viimeiset_tunnit,
             })
@@ -571,10 +535,3 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
-
-
-
-
-
-
-
