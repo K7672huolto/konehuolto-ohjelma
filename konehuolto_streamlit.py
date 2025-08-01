@@ -304,10 +304,10 @@ with tab2:
                 rightMargin=20, leftMargin=20, topMargin=40, bottomMargin=30
             )
 
-            otsikkotyyli = ParagraphStyle("otsikko", fontName="Helvetica-Bold", fontSize=22, alignment=1, spaceAfter=12)
+            otsikkotyyli = ParagraphStyle("otsikko", fontName="Helvetica-Bold", fontSize=20, alignment=1, spaceAfter=12)
             pvmtyyli = ParagraphStyle("pvm", fontSize=12, alignment=2)
             perustyyli = ParagraphStyle("perus", fontName="Helvetica", fontSize=10)
-            koneotsikko = ParagraphStyle("kone", fontName="Helvetica-Bold", fontSize=14)
+            koneotsikko = ParagraphStyle("kone", fontName="Helvetica-Bold", fontSize=12)
             ryhmatyyli = ParagraphStyle("ryhma", fontName="Helvetica", fontSize=11)
             idtyyli = ParagraphStyle("id", fontName="Helvetica-Oblique", fontSize=10, textColor=colors.grey)
             vihrea = ParagraphStyle("vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=10)
