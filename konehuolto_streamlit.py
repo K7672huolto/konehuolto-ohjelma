@@ -286,6 +286,51 @@ with tab2:
         df_naytto = muodosta_esikatselu(filt)
         st.dataframe(df_naytto, hide_index=True, use_container_width=True)
 
+        # --- MUOKKAUS JA POISTO ---
+        muokattavat = [
+            f"{row['Kone']} ({row['ID']}) {row['Päivämäärä']} (HuoltoID: {row['HuoltoID']})"
+            for _, row in filt.iterrows()
+        ]
+        valittu_muokattava = st.selectbox(
+            "Valitse muokattava huolto",
+            [""] + muokattavat,
+            key="tab2_muokkaa_id"
+        )
+        if valittu_muokattava:
+            valittu_huoltoid = valittu_muokattava.split("HuoltoID: ")[-1].replace(")", "").strip()
+            valittu = df[df["HuoltoID"].astype(str) == valittu_huoltoid].iloc[0]
+            uusi_tunnit = st.text_input("Tunnit/km", value=valittu.get("Tunnit", ""), key="tab2_edit_tunnit")
+            uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""), key="tab2_edit_pvm")
+            uusi_vapaa = st.text_input("Vapaa teksti", value=valittu.get("Vapaa teksti", ""), key="tab2_edit_vapaa")
+            uusi_kohta = {}
+            for pitkä, lyhenne in HUOLTOKOHTEET.items():
+                vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
+                arvo = str(valittu.get(lyhenne, "--")).strip().upper()
+                vaihtoehdot_upper = [v.upper() for v in vaihtoehdot]
+                if arvo not in vaihtoehdot_upper:
+                    arvo = "--"
+                uusi_kohta[lyhenne] = st.selectbox(
+                    pitkä,
+                    vaihtoehdot,
+                    index=vaihtoehdot_upper.index(arvo),
+                    key=f"tab2_edit_{lyhenne}"
+                )
+            if st.button("Tallenna muutokset", key="tab2_tallenna_muokkaa"):
+                idx = df[df["HuoltoID"].astype(str) == valittu_huoltoid].index[0]
+                df.at[idx, "Tunnit"] = uusi_tunnit
+                df.at[idx, "Päivämäärä"] = uusi_pvm
+                df.at[idx, "Vapaa teksti"] = uusi_vapaa
+                for lyhenne in uusi_kohta:
+                    df.at[idx, lyhenne] = uusi_kohta[lyhenne]
+                tallenna_huollot(df)
+                st.success("Tallennettu!")
+                st.rerun()
+            if st.button("Poista tämä huolto", key="tab2_poista_huolto"):
+                df = df[df["HuoltoID"].astype(str) != valittu_huoltoid]
+                tallenna_huollot(df)
+                st.success("Huolto poistettu!")
+                st.rerun()
+
         # --- PDF LATAUS ---
         def lataa_pdf(df):
             from reportlab.lib import colors
@@ -304,10 +349,10 @@ with tab2:
                 rightMargin=20, leftMargin=20, topMargin=40, bottomMargin=30
             )
 
-            otsikkotyyli = ParagraphStyle("otsikko", fontName="Helvetica-Bold", fontSize=20, alignment=1, spaceAfter=12)
+            otsikkotyyli = ParagraphStyle("otsikko", fontName="Helvetica-Bold", fontSize=22, alignment=1, spaceAfter=12)
             pvmtyyli = ParagraphStyle("pvm", fontSize=12, alignment=2)
             perustyyli = ParagraphStyle("perus", fontName="Helvetica", fontSize=10)
-            koneotsikko = ParagraphStyle("kone", fontName="Helvetica-Bold", fontSize=12)
+            koneotsikko = ParagraphStyle("kone", fontName="Helvetica-Bold", fontSize=14)
             ryhmatyyli = ParagraphStyle("ryhma", fontName="Helvetica", fontSize=11)
             idtyyli = ParagraphStyle("id", fontName="Helvetica-Oblique", fontSize=10, textColor=colors.grey)
             vihrea = ParagraphStyle("vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=10)
@@ -358,7 +403,7 @@ with tab2:
                     rivi.append(str(row.get("Vapaa teksti", "")))
                     taulukko.append(rivi)
 
-                colwidths = [55, 65] + [28]*len(LYHENTEET) + [240]
+                colwidths = [40, 55] + [28]*len(LYHENTEET) + [180]
                 table = Table(taulukko, colWidths=colwidths)
                 style = TableStyle([
                     ("BACKGROUND", (0,0), (-1,0), header_vihrea),
@@ -396,6 +441,7 @@ with tab2:
                 file_name="huoltoraportti.pdf",
                 mime="application/pdf"
             )
+
 
 
 # ----------- TAB 3: KONEET JA RYHMÄT -----------
