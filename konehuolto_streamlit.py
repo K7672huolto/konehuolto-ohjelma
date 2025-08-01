@@ -358,7 +358,7 @@ with tab2:
                     rivi.append(str(row.get("Vapaa teksti", "")))
                     taulukko.append(rivi)
 
-                colwidths = [40, 55] + [28]*len(LYHENTEET) + [180]
+                colwidths = [55, 65] + [28]*len(LYHENTEET) + [240]
                 table = Table(taulukko, colWidths=colwidths)
                 style = TableStyle([
                     ("BACKGROUND", (0,0), (-1,0), header_vihrea),
