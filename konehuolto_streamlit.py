@@ -239,10 +239,15 @@ with tab2:
     if huolto_df.empty:
         st.info("Ei huoltoja tallennettu vielä.")
     else:
-        df = huolto_df.copy().reset_index(drop=True)
-        LYHENTEET = [col for col in df.columns if col not in ["Kone", "ID", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti", "HuoltoID"]]
+        # Järjestä koneen ja päivämäärän mukaan uusimmat ensin
+        df = huolto_df.copy()
+        df["Pvm_dt"] = pd.to_datetime(df["Päivämäärä"], dayfirst=True, errors="coerce")
+        df = df.sort_values(["Kone", "Pvm_dt"], ascending=[True, False]).reset_index(drop=True)
 
-        # --- Suodatus ---
+        LYHENTEET = ["MÖ", "HÖ", "AÖ", "IS", "MS", "HS", "R", "PS", "T", "VÖ", "PÖ"]
+        COLUMNS = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
+
+        # Suodatus
         ryhmat = ["Kaikki"] + sorted(df["Ryhmä"].unique())
         valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ryhmat, key="tab2_ryhma")
         filt = df if valittu_ryhma == "Kaikki" else df[df["Ryhmä"] == valittu_ryhma]
@@ -250,7 +255,7 @@ with tab2:
         valittu_kone = st.selectbox("Suodata koneen mukaan", koneet, key="tab2_kone")
         filt = filt if valittu_kone == "Kaikki" else filt[filt["Kone"] == valittu_kone]
 
-        # --- Esikatselu ---
+        # Esikatselu
         def muodosta_esikatselu(df):
             rows = []
             for kone in df["Kone"].unique():
@@ -260,18 +265,18 @@ with tab2:
                 id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
                 ryhma = kone_df["Ryhmä"].iloc[0] if "Ryhmä" in kone_df.columns else ""
                 huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-                # Ensimmäinen rivi: kone, ryhmä, 1.huolto
+                # 1. rivi: koneen nimi, ryhmä, 1. huolto
                 huolto1 = [str(kone_df.iloc[0].get(col, "")) for col in huolto_cols]
                 huolto1 = ["✔" if val.upper() == "OK" else val for val in huolto1]
                 rows.append([kone, ryhma] + huolto1)
-                # Toinen rivi: ID, 2.huolto (tai tyhjät jos vain yksi huolto)
+                # 2. rivi: ID, 2. huolto (tai tyhjät jos vain yksi huolto)
                 if len(kone_df) > 1:
                     huolto2 = [str(kone_df.iloc[1].get(col, "")) for col in huolto_cols]
                     huolto2 = ["✔" if val.upper() == "OK" else val for val in huolto2]
                     rows.append([id_, ""] + huolto2)
                 else:
                     rows.append([id_, ""] + [""] * len(huolto1))
-                # Lisää rivit muille huolloille (jos > 2)
+                # Mahd. lisää huoltoja
                 for i in range(2, len(kone_df)):
                     huoltoN = [str(kone_df.iloc[i].get(col, "")) for col in huolto_cols]
                     huoltoN = ["✔" if val.upper() == "OK" else val for val in huoltoN]
@@ -280,11 +285,13 @@ with tab2:
                 rows.append([""] * (2 + len(huolto1)))
             if rows and all([cell == "" for cell in rows[-1]]):
                 rows.pop()
-            columns = ["Kone", "Ryhmä"] + ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-            return pd.DataFrame(rows, columns=columns)
+            return pd.DataFrame(rows, columns=COLUMNS)
 
         df_naytto = muodosta_esikatselu(filt)
         st.dataframe(df_naytto, hide_index=True, use_container_width=True)
+
+        # PDF ja muu logiikka tähän alle...
+
 
         # --- MUOKKAUS JA POISTO ---
         muokattavat = [
