@@ -349,10 +349,10 @@ with tab2:
                 rightMargin=20, leftMargin=20, topMargin=40, bottomMargin=30
             )
 
-            otsikkotyyli = ParagraphStyle("otsikko", fontName="Helvetica-Bold", fontSize=22, alignment=1, spaceAfter=12)
+            otsikkotyyli = ParagraphStyle("otsikko", fontName="Helvetica-Bold", fontSize=20, alignment=1, spaceAfter=12)
             pvmtyyli = ParagraphStyle("pvm", fontSize=12, alignment=2)
             perustyyli = ParagraphStyle("perus", fontName="Helvetica", fontSize=10)
-            koneotsikko = ParagraphStyle("kone", fontName="Helvetica-Bold", fontSize=14)
+            koneotsikko = ParagraphStyle("kone", fontName="Helvetica-Bold", fontSize=12)
             ryhmatyyli = ParagraphStyle("ryhma", fontName="Helvetica", fontSize=11)
             idtyyli = ParagraphStyle("id", fontName="Helvetica-Oblique", fontSize=10, textColor=colors.grey)
             vihrea = ParagraphStyle("vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=10)
@@ -403,7 +403,7 @@ with tab2:
                     rivi.append(str(row.get("Vapaa teksti", "")))
                     taulukko.append(rivi)
 
-                colwidths = [40, 55] + [28]*len(LYHENTEET) + [180]
+                colwidths = [50, 65] + [28]*len(LYHENTEET) + [180]
                 table = Table(taulukko, colWidths=colwidths)
                 style = TableStyle([
                     ("BACKGROUND", (0,0), (-1,0), header_vihrea),
@@ -556,6 +556,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
