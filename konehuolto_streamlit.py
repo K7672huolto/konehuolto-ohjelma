@@ -367,7 +367,7 @@ with tab2:
                         else:
                             rivi.append(str(v))
                     taulu.append(rivi)
-                table = Table(taulu, repeatRows=1, colWidths=[50, 65] + [26 for _ in LYHENTEET] + [180])
+                table = Table(taulu, repeatRows=1, colWidths=[55, 65] + [30 for _ in LYHENTEET] + [240])
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -520,6 +520,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
