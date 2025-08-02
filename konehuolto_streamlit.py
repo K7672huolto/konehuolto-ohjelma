@@ -400,6 +400,15 @@ with tab2:
             doc.build(story, onFirstPage=pdf_footer, onLaterPages=pdf_footer)
             buffer.seek(0)
             return buffer
+            
+        if st.button("Lataa PDF", key="lataa_pdf_tab2"):
+            pdfdata = pdf_huoltoraportti(filt, kone_jarjestys)
+            st.download_button(
+                label="Lataa PDF-tiedosto",
+                data=pdfdata,
+                file_name="huoltohistoria.pdf",
+                mime="application/pdf"
+            )
 
 
 
@@ -521,6 +530,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
