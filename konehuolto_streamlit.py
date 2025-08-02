@@ -334,72 +334,72 @@ with tab2:
 
         from reportlab.lib.styles import getSampleStyleSheet
         def pdf_huoltoraportti(df, kone_jarjestys):
-    buffer = BytesIO()
-    styles = getSampleStyleSheet()
-    otsikko = Paragraph("<b>Huoltoraportti</b>", styles["Title"])
-    paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), styles["Normal"])
-    story = []
-    # Vähemmän tyhjää yläreunaan
-    story.append(Spacer(1, 8))
-    story.append(otsikko)
-    story.append(paivays)
-    story.append(Spacer(1, 8))
-    # HUOLTOTAULUKKO
-    for kone in kone_jarjestys:
-        kone_df = df[df["Kone"] == kone].copy()
-        if kone_df.empty:
-            continue
-        kone_df["Pvm_dt"] = pd.to_datetime(kone_df["Päivämäärä"], dayfirst=True, errors="coerce")
-        kone_df = kone_df.sort_values("Pvm_dt")  # vanhin ensin
-        id_ = kone_df["ID"].iloc[0]
-        ryhma = kone_df["Ryhmä"].iloc[0]
-        # Koneen tiedot tiiviisti ilman Spacer-välejä
-        story.append(Paragraph(f"<b>{kone}</b>", styles["Heading2"]))
-        story.append(Paragraph(f"Ryhmä: {ryhma}", styles["Normal"]))
-        story.append(Paragraph(f"<i>ID: {id_}</i>", styles["Italic"]))
-        # Ei Spaceria tähän väliin!
-        # Huoltotaulukko
-        cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-        taulu = []
-        ots = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-        taulu.append(ots)
-        for _, row in kone_df.iterrows():
-            rivi = []
-            for c in cols:
-                v = row.get(c, "")
-                if str(v).strip().upper() == "OK":
-                    rivi.append(Paragraph('<font color="green">&#10003;</font>', styles["Normal"]))  # ✔
-                else:
-                    rivi.append(str(v))
-            taulu.append(rivi)
-        table = Table(taulu, repeatRows=1, colWidths=[44, 65] + [26 for _ in LYHENTEET] + [180])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ]))
-        story.append(table)
-        story.append(Spacer(1, 10))  # Pieni väli seuraavaan koneeseen
+			buffer = BytesIO()
+			styles = getSampleStyleSheet()
+			otsikko = Paragraph("<b>Huoltoraportti</b>", styles["Title"])
+			paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), styles["Normal"])
+			story = []
+			# Vähemmän tyhjää yläreunaan
+			story.append(Spacer(1, 8))
+			story.append(otsikko)
+			story.append(paivays)
+			story.append(Spacer(1, 8))
+			# HUOLTOTAULUKKO
+			for kone in kone_jarjestys:
+				kone_df = df[df["Kone"] == kone].copy()
+				if kone_df.empty:
+					continue
+				kone_df["Pvm_dt"] = pd.to_datetime(kone_df["Päivämäärä"], dayfirst=True, errors="coerce")
+				kone_df = kone_df.sort_values("Pvm_dt")  # vanhin ensin
+				id_ = kone_df["ID"].iloc[0]
+				ryhma = kone_df["Ryhmä"].iloc[0]
+				# Koneen tiedot tiiviisti ilman Spacer-välejä
+				story.append(Paragraph(f"<b>{kone}</b>", styles["Heading2"]))
+				story.append(Paragraph(f"Ryhmä: {ryhma}", styles["Normal"]))
+				story.append(Paragraph(f"<i>ID: {id_}</i>", styles["Italic"]))
+				# Ei Spaceria tähän väliin!
+				# Huoltotaulukko
+				cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
+				taulu = []
+				ots = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
+				taulu.append(ots)
+				for _, row in kone_df.iterrows():
+					rivi = []
+					for c in cols:
+						v = row.get(c, "")
+						if str(v).strip().upper() == "OK":
+							rivi.append(Paragraph('<font color="green">&#10003;</font>', styles["Normal"]))  # ✔
+						else:
+							rivi.append(str(v))
+					taulu.append(rivi)
+				table = Table(taulu, repeatRows=1, colWidths=[44, 65] + [26 for _ in LYHENTEET] + [180])
+				table.setStyle(TableStyle([
+					('BACKGROUND', (0, 0), (-1, 0), colors.teal),
+					('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+					('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+					('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+					('FONTSIZE', (0, 0), (-1, -1), 8),
+					('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+					('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+					('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+				]))
+				story.append(table)
+				story.append(Spacer(1, 10))  # Pieni väli seuraavaan koneeseen
 
-    # FOOTER päivämäärä + sivu
-    def pdf_footer(canvas, doc):
-        canvas.saveState()
-        canvas.setFont('Helvetica', 8)
-        canvas.drawString(15, 15, f"Päivämäärä: {datetime.today().strftime('%d.%m.%Y')}")
-        canvas.drawRightString(800, 15, f"Sivu {doc.page}")
-        canvas.restoreState()
-    doc = SimpleDocTemplate(
-        buffer, pagesize=landscape(A4),
-        rightMargin=30, leftMargin=30, topMargin=22, bottomMargin=25  # topMargin pienempi!
-    )
-    doc.build(story, onFirstPage=pdf_footer, onLaterPages=pdf_footer)
-    buffer.seek(0)
-    return buffer
+			# FOOTER päivämäärä + sivu
+			def pdf_footer(canvas, doc):
+				canvas.saveState()
+				canvas.setFont('Helvetica', 8)
+				canvas.drawString(15, 15, f"Päivämäärä: {datetime.today().strftime('%d.%m.%Y')}")
+				canvas.drawRightString(800, 15, f"Sivu {doc.page}")
+				canvas.restoreState()
+			doc = SimpleDocTemplate(
+				buffer, pagesize=landscape(A4),
+				rightMargin=30, leftMargin=30, topMargin=22, bottomMargin=25  # topMargin pienempi!
+			)
+			doc.build(story, onFirstPage=pdf_footer, onLaterPages=pdf_footer)
+			buffer.seek(0)
+			return buffer
 
 
         if st.button("Lataa PDF", key="lataa_pdf_tab2"):
@@ -527,7 +527,6 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
-
 
 
 
