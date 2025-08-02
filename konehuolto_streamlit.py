@@ -338,12 +338,7 @@ with tab2:
             styles = getSampleStyleSheet()
             otsikko = Paragraph("<b>Huoltoraportti</b>", styles["Title"])
             paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), styles["Normal"])
-            story = []
-            # Vähemmän tyhjää yläreunaan
-            story.append(Spacer(1, 8))
-            story.append(otsikko)
-            story.append(paivays)
-            story.append(Spacer(1, 8))
+            story = [Spacer(1, 20), otsikko, Spacer(1, 10), paivays, Spacer(1, 20)]
             # HUOLTOTAULUKKO
             for kone in kone_jarjestys:
                 kone_df = df[df["Kone"] == kone].copy()
@@ -353,11 +348,11 @@ with tab2:
                 kone_df = kone_df.sort_values("Pvm_dt")  # vanhin ensin
                 id_ = kone_df["ID"].iloc[0]
                 ryhma = kone_df["Ryhmä"].iloc[0]
-                # Koneen tiedot tiiviisti ilman Spacer-välejä
+                # Otsikot ja koneen tiedot
+                story.append(Spacer(1, 8))
                 story.append(Paragraph(f"<b>{kone}</b>", styles["Heading2"]))
                 story.append(Paragraph(f"Ryhmä: {ryhma}", styles["Normal"]))
                 story.append(Paragraph(f"<i>ID: {id_}</i>", styles["Italic"]))
-                # Ei Spaceria tähän väliin!
                 # Huoltotaulukko
                 cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
                 taulu = []
@@ -372,7 +367,7 @@ with tab2:
                         else:
                             rivi.append(str(v))
                     taulu.append(rivi)
-                table = Table(taulu, repeatRows=1, colWidths=[55, 65] + 30 for _ in LYHENTEET] + [180])
+                table = Table(taulu, repeatRows=1, colWidths=[44, 65] + [26 for _ in LYHENTEET] + [180])
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -384,8 +379,7 @@ with tab2:
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ]))
                 story.append(table)
-                story.append(Spacer(1, 10))  # Pieni väli seuraavaan koneeseen
-
+                story.append(Spacer(1, 14))
             # FOOTER päivämäärä + sivu
             def pdf_footer(canvas, doc):
                 canvas.saveState()
@@ -395,12 +389,12 @@ with tab2:
                 canvas.restoreState()
             doc = SimpleDocTemplate(
                 buffer, pagesize=landscape(A4),
-                rightMargin=30, leftMargin=30, topMargin=22, bottomMargin=25  # topMargin pienempi!
+                rightMargin=30, leftMargin=30, topMargin=36, bottomMargin=25
             )
             doc.build(story, onFirstPage=pdf_footer, onLaterPages=pdf_footer)
             buffer.seek(0)
             return buffer
-            
+
         if st.button("Lataa PDF", key="lataa_pdf_tab2"):
             pdfdata = pdf_huoltoraportti(filt, kone_jarjestys)
             st.download_button(
@@ -409,7 +403,6 @@ with tab2:
                 file_name="huoltohistoria.pdf",
                 mime="application/pdf"
             )
-
 
 
 
@@ -530,14 +523,6 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
-
-
-
-
-
-
-
-
 
 
 
