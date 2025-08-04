@@ -627,19 +627,20 @@ with tab4:
                 nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
                 values = ws.get_all_values()
                 if not values or not any("Aika" in s for s in values[0]):
-                    ws.append_row(["Aika", "Kone", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"])
+                    ws.append_row(["Aika", "Kone", "Ryhmä", "Edellinen huolto", "Syötä uudet tunnit", "Erotus"])
                 for idx, row in df_tunnit.iterrows():
                     ws.append_row([
                         nyt,
                         row["Kone"],
                         row["Ryhmä"],
                         row["Viimeisin huolto (tunnit)"],
-                        row["Uudet tunnit"],
+                        row["Syötä uudet tunnit"],
                         row["Erotus"]
                     ])
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
