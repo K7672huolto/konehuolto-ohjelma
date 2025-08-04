@@ -543,6 +543,40 @@ with tab4:
             hide_index=True
         )
 
+        # ----- PDF-tallennus/lataus -----
+        def create_pdf(df):
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            pdf.cell(0, 10, "Kaikkien koneiden käyttötunnit ja erotus", ln=True, align='C')
+
+            col_widths = [35, 25, 40, 35, 35, 25]
+            headers = ["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]
+            # Otsikkorivi
+            for i, h in enumerate(headers):
+                pdf.cell(col_widths[i], 10, h, border=1)
+            pdf.ln()
+            # Data
+            for idx, row in df.iterrows():
+                pdf.cell(col_widths[0], 10, str(row["Kone"]), border=1)
+                pdf.cell(col_widths[1], 10, str(row["Ryhmä"]), border=1)
+                pdf.cell(col_widths[2], 10, str(row["Viimeisin huolto (pvm)"]), border=1)
+                pdf.cell(col_widths[3], 10, str(row["Viimeisin huolto (tunnit)"]), border=1)
+                pdf.cell(col_widths[4], 10, str(row["Syötä uudet tunnit"]), border=1)
+                pdf.cell(col_widths[5], 10, str(row["Erotus"]), border=1)
+                pdf.ln()
+            return pdf.output(dest='S').encode('latin1')
+
+        pdf_bytes = create_pdf(df_tunnit)
+
+        st.download_button(
+            label="Lataa PDF",
+            data=pdf_bytes,
+            file_name="kaikkien_koneiden_tunnit.pdf",
+            mime="application/pdf"
+        )
+        # ----- /PDF-tallennus -----
+
         if st.button("Tallenna kaikkien koneiden tunnit", key="tab4_tallenna_kaikki"):
             try:
                 ws = get_gsheet_connection("Käyttötunnit")
@@ -561,7 +595,8 @@ with tab4:
                     ])
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
-                st.error(f"Tallennus epäonnistui: {e}")
+                st.error(f"Tallennus epäonnistui: {e}"
+
 
 
 
