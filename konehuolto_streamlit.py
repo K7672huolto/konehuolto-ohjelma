@@ -543,39 +543,83 @@ with tab4:
             hide_index=True
         )
 
-        # ----- PDF-tallennus/lataus -----
-        def create_pdf(df):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.cell(0, 10, "Kaikkien koneiden käyttötunnit ja erotus", ln=True, align='C')
+        # --- PDF-lataus, sama tyyli kuin tab2:ssa (reportlab) ---
+        from io import BytesIO
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.pagesizes import landscape, A4
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib import colors
+        from reportlab.lib.units import inch, mm
+        from datetime import datetime
 
-            col_widths = [35, 25, 40, 35, 35, 25]
-            headers = ["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]
-            # Otsikkorivi
-            for i, h in enumerate(headers):
-                pdf.cell(col_widths[i], 10, h, border=1)
-            pdf.ln()
-            # Data
-            for idx, row in df.iterrows():
-                pdf.cell(col_widths[0], 10, str(row["Kone"]), border=1)
-                pdf.cell(col_widths[1], 10, str(row["Ryhmä"]), border=1)
-                pdf.cell(col_widths[2], 10, str(row["Viimeisin huolto (pvm)"]), border=1)
-                pdf.cell(col_widths[3], 10, str(row["Viimeisin huolto (tunnit)"]), border=1)
-                pdf.cell(col_widths[4], 10, str(row["Syötä uudet tunnit"]), border=1)
-                pdf.cell(col_widths[5], 10, str(row["Erotus"]), border=1)
-                pdf.ln()
-            return pdf.output(dest='S').encode('latin1')
+        def create_tab4_pdf(df):
+            buffer = BytesIO()
+            otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
+            paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
+            otsikko = Paragraph("Kaikkien koneiden käyttötunnit ja erotus", otsikkotyyli)
 
-        pdf_bytes = create_pdf(df_tunnit)
+            # Taulukkodata
+            columns = ["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]
+            data = [columns] + [[
+                str(row["Kone"]),
+                str(row["Ryhmä"]),
+                str(row["Viimeisin huolto (pvm)"]),
+                str(row["Viimeisin huolto (tunnit)"]),
+                str(row["Syötä uudet tunnit"]),
+                str(row["Erotus"])
+            ] for _, row in df.iterrows()]
+
+            sarakeleveys = [90, 60, 75, 65, 65, 55]
+            table = Table(data, repeatRows=1, colWidths=sarakeleveys)
+            table_styles = [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]
+            table.setStyle(TableStyle(table_styles))
+
+            def pdf_footer(canvas, doc):
+                canvas.saveState()
+                canvas.setFont('Helvetica', 8)
+                canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
+                canvas.restoreState()
+
+            doc = SimpleDocTemplate(
+                buffer, pagesize=landscape(A4),
+                rightMargin=0.5 * inch, leftMargin=0.5 * inch,
+                topMargin=0.7 * inch, bottomMargin=0.5 * inch
+            )
+            doc.build(
+                [Spacer(1, 4 * mm),
+                 Table([[otsikko, paivays]], colWidths=[340, 340], style=[
+                     ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                     ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                     ("VALIGN", (0,0), (-1,-1), "TOP"),
+                     ("BOTTOMPADDING", (0,0), (-1,-1), 0),
+                     ("TOPPADDING", (0,0), (-1,-1), 0),
+                 ]),
+                 Spacer(1, 4 * mm),
+                 table],
+                onFirstPage=pdf_footer,
+                onLaterPages=pdf_footer
+            )
+            buffer.seek(0)
+            return buffer
+
+        pdf_buffer = create_tab4_pdf(df_tunnit)
 
         st.download_button(
-            label="Lataa PDF",
-            data=pdf_bytes,
+            label="Lataa PDF-tiedosto",
+            data=pdf_buffer,
             file_name="kaikkien_koneiden_tunnit.pdf",
             mime="application/pdf"
         )
-        # ----- /PDF-tallennus -----
+        # --- /PDF-lataus ---
 
         if st.button("Tallenna kaikkien koneiden tunnit", key="tab4_tallenna_kaikki"):
             try:
@@ -596,6 +640,8 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
+
 
 
 
