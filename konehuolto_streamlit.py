@@ -536,7 +536,7 @@ with tab4:
                 key=f"tab4_tunnit_{i}"
             ) for i, row in df_tunnit.iterrows()
         ]
-        df_tunnit["Erotus"] = df_tunnit["Syötä uudet tunnit"] - df_tunnit["Viimeisin huolto (tunnit)"]
+        df_tunnit["Erotus"] = df_tunnit["Uudet tunnit"] - df_tunnit["Viimeisin huolto (tunnit)"]
 
         st.dataframe(
             df_tunnit[["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]],
@@ -565,7 +565,7 @@ with tab4:
                 str(row["Ryhmä"]),
                 str(row["Viimeisin huolto (pvm)"]),
                 str(row["Viimeisin huolto (tunnit)"]),
-                str(row["Syötä uudet tunnit"]),
+                str(row["Uudet tunnit"]),
                 str(row["Erotus"])
             ] for _, row in df.iterrows()]
 
@@ -640,6 +640,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
