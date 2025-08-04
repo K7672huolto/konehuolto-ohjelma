@@ -634,12 +634,13 @@ with tab4:
                         row["Kone"],
                         row["Ryhmä"],
                         row["Viimeisin huolto (tunnit)"],
-                        row["Syötä uudet tunnit"],
+                        row["Uudet tunnit"],
                         row["Erotus"]
                     ])
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
