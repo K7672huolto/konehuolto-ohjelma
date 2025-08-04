@@ -569,7 +569,7 @@ with tab4:
                 str(row["Erotus"])
             ] for _, row in df.iterrows()]
 
-            sarakeleveys = [90, 60, 75, 65, 65, 55]
+            sarakeleveys = [140, 120, 100, 90, 90, 55]
             table = Table(data, repeatRows=1, colWidths=sarakeleveys)
             table_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
@@ -640,6 +640,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
