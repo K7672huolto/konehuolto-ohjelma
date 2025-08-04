@@ -539,7 +539,7 @@ with tab4:
         df_tunnit["Erotus"] = df_tunnit["Syötä uudet tunnit"] - df_tunnit["Viimeisin huolto (tunnit)"]
 
         st.dataframe(
-            df_tunnit[["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]],
+            df_tunnit[["Kone", "Ryhmä", "Huollettu (pvm)", "Viimeisin huolto (tunnit)", "Tunnit", "Erotus"]],
             hide_index=True
         )
 
@@ -616,7 +616,7 @@ with tab4:
         st.download_button(
             label="Lataa PDF-tiedosto",
             data=pdf_buffer,
-            file_name="kaikkien_koneiden_tunnit.pdf",
+            file_name="Koneiden tunnit.pdf",
             mime="application/pdf"
         )
         # --- /PDF-lataus ---
@@ -640,6 +640,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
