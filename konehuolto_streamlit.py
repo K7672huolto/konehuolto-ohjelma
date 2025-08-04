@@ -499,7 +499,7 @@ with tab3:
 
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
-    st.header("Koneiden käyttötunnit")
+    st.header("Kaikkien koneiden käyttötunnit ja erotus")
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
     else:
@@ -539,7 +539,7 @@ with tab4:
         df_tunnit["Erotus"] = df_tunnit["Syötä uudet tunnit"] - df_tunnit["Viimeisin huolto (tunnit)"]
 
         st.dataframe(
-            df_tunnit[["Kone", "Ryhmä", "Huollettu (pvm)", "Viimeisin huolto (tunnit)", "Tunnit", "Erotus"]],
+            df_tunnit[["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]],
             hide_index=True
         )
 
@@ -569,7 +569,7 @@ with tab4:
                 str(row["Erotus"])
             ] for _, row in df.iterrows()]
 
-            sarakeleveys = [120, 120, 75, 65, 65, 55]
+            sarakeleveys = [90, 60, 75, 65, 65, 55]
             table = Table(data, repeatRows=1, colWidths=sarakeleveys)
             table_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
@@ -616,7 +616,7 @@ with tab4:
         st.download_button(
             label="Lataa PDF-tiedosto",
             data=pdf_buffer,
-            file_name="Koneiden tunnit.pdf",
+            file_name="kaikkien_koneiden_tunnit.pdf",
             mime="application/pdf"
         )
         # --- /PDF-lataus ---
@@ -640,6 +640,8 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
+
 
 
 
