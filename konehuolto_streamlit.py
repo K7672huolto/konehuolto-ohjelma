@@ -229,9 +229,18 @@ with tab1:
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
+
+                            # TYHJENNÄ LOMAKEKENTÄT (session_state):
+                            st.session_state.pop("form_tunnit", None)
+                            st.session_state.pop("pvm", None)
+                            st.session_state.pop("form_vapaa", None)
+                            for pitkä in HUOLTOKOHTEET:
+                                st.session_state.pop(f"form_valinta_{pitkä}", None)
                             st.rerun()
+
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
 
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
 with tab2:
@@ -648,6 +657,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
