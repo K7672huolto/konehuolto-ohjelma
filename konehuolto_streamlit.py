@@ -255,12 +255,18 @@ with tab1:
                     st.error(f"Tallennus epäonnistui: {e}")
 
         if reset:
-            st.session_state["form_tunnit"] = ""
-            st.session_state["form_vapaa"] = ""
-            st.session_state["pvm"] = datetime.today()
+            if "form_tunnit" in st.session_state:
+                st.session_state["form_tunnit"] = ""
+            if "form_vapaa" in st.session_state:
+                st.session_state["form_vapaa"] = ""
+            if "pvm" in st.session_state:
+                st.session_state["pvm"] = datetime.today()
             for pitkä in HUOLTOKOHTEET:
-                st.session_state[f"form_valinta_{pitkä}"] = "--"
+                key = f"form_valinta_{pitkä}"
+                if key in st.session_state:
+                    st.session_state[key] = "--"
             st.experimental_rerun()
+
 
 
 
@@ -684,6 +690,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
