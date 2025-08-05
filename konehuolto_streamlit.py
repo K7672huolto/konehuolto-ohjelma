@@ -250,7 +250,7 @@ with tab1:
                 try:
                     tallenna_huollot(yhdistetty)
                     st.success("Huolto tallennettu!")
-                    st.experimental_rerun()
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Tallennus epäonnistui: {e}")
 
@@ -265,7 +265,7 @@ with tab1:
                 key = f"form_valinta_{pitkä}"
                 if key in st.session_state:
                     st.session_state[key] = "--"
-            st.experimental_rerun()
+            st.rerun()
 
 
 
@@ -690,7 +690,6 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
-
 
 
 
