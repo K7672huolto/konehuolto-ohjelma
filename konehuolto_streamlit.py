@@ -163,23 +163,25 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # ----------- TAB 1: LISÄÄ HUOLTO -----------
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
-    if koneet_df.empty:
-        st.info("Ei yhtään konetta vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
+    ryhmat_lista = sorted(list(koneet_data.keys()))
+    if not ryhmat_lista:
+        st.info("Ei yhtään koneryhmää vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
     else:
-        ryhmat_lista = sorted(koneet_df["Ryhmä"].dropna().unique())
         valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="tab1_ryhma_select")
-        koneet_df2 = koneet_df[koneet_df["Ryhmä"] == valittu_ryhma]
-        koneet_lista = koneet_df2["Kone"].tolist()
-        st.write("DEBUG: Valittu ryhmä:", valittu_ryhma)
-        st.write("DEBUG: Tämän ryhmän koneet:", koneet_lista)
-
-        if koneet_lista:
-            kone_valinta = st.selectbox("Valitse kone", koneet_lista, key="tab1_konevalinta_select")
+        koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
+        if koneet_ryhmaan:
+            koneet_df2 = pd.DataFrame(koneet_ryhmaan)
+            kone_valinta = st.radio(
+                "Valitse kone:",
+                koneet_df2["Kone"].tolist(),
+                key="tab1_konevalinta_radio",
+                index=0 if len(koneet_df2) > 0 else None
+            )
             kone_id = koneet_df2[koneet_df2["Kone"] == kone_valinta]["ID"].values[0]
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
-            kone_valinta = ""
             kone_id = ""
+            kone_valinta = ""
 
         if kone_id:
             with st.form(key="huolto_form"):
@@ -227,13 +229,6 @@ with tab1:
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
-                            # Tyhjennä kaikki kentät
-                            st.session_state.pop("form_tunnit", None)
-                            st.session_state.pop("pvm", None)
-                            st.session_state.pop("form_vapaa", None)
-                            st.session_state.pop("tab1_konevalinta_select", None)
-                            for pitkä in HUOLTOKOHTEET:
-                                st.session_state.pop(f"form_valinta_{pitkä}", None)
                             st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
@@ -662,6 +657,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
