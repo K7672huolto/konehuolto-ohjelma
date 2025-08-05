@@ -163,15 +163,18 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # ----------- TAB 1: LISÄÄ HUOLTO -----------
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
+    st.write("DEBUG: koneet_df", koneet_df)
     if koneet_df.empty:
         st.info("Ei yhtään konetta vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
     else:
-        # Näytä vain ne ryhmät missä oikeasti on koneita:
         ryhmat_lista = sorted(koneet_df["Ryhmä"].dropna().unique())
         valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="tab1_ryhma_select")
         koneet_df2 = koneet_df[koneet_df["Ryhmä"] == valittu_ryhma]
         koneet_lista = koneet_df2["Kone"].tolist()
-        n_per_row = 4
+        st.write("DEBUG: Valittu ryhmä:", valittu_ryhma)
+        st.write("DEBUG: Tämän ryhmän koneet:", koneet_lista)
+        # Tästä eteenpäin käytä vain koneet_lista!
+
 
         # Apufunktio koneiden rivittämiseen
         def split_list(lst, n):
@@ -682,6 +685,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
