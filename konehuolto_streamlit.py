@@ -187,11 +187,15 @@ with tab1:
             with st.form(key="huolto_form"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    kayttotunnit = st.text_input("Tunnit/km", key="form_tunnit")
+                    kayttotunnit = st.text_input(
+                        "Tunnit/km",
+                        key="form_tunnit",
+                        value=st.session_state.get("form_tunnit", "")
+                    )
                 with col2:
                     pvm = st.date_input(
                         "Päivämäärä",
-                        value=datetime.today(),
+                        value=st.session_state.get("pvm", datetime.today()),
                         min_value=datetime(1990, 1, 1),
                         max_value=datetime(datetime.today().year + 10, 12, 31),
                         key="pvm"
@@ -205,10 +209,20 @@ with tab1:
                         valinnat[HUOLTOKOHTEET[pitkä]] = st.selectbox(
                             f"{pitkä}:", vaihtoehdot,
                             key=f"form_valinta_{pitkä}",
-                            index=0
+                            index= vaihtoehdot.index(st.session_state.get(f"form_valinta_{pitkä}", "--"))
                         )
-                vapaa = st.text_input("Vapaa teksti", key="form_vapaa")
-                submit = st.form_submit_button("Tallenna huolto")
+                vapaa = st.text_input(
+                    "Vapaa teksti",
+                    key="form_vapaa",
+                    value=st.session_state.get("form_vapaa", "")
+                )
+
+                col_submit, col_reset = st.columns([1, 1])
+                with col_submit:
+                    submit = st.form_submit_button("Tallenna huolto")
+                with col_reset:
+                    reset = st.form_submit_button("Tyhjennä kentät")
+
                 if submit:
                     if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
                         st.warning("Täytä kaikki kentät!")
@@ -232,6 +246,15 @@ with tab1:
                             st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
+                if reset:
+                    st.session_state["form_tunnit"] = ""
+                    st.session_state["form_vapaa"] = ""
+                    st.session_state["pvm"] = datetime.today()
+                    for pitkä in HUOLTOKOHTEET:
+                        st.session_state[f"form_valinta_{pitkä}"] = "--"
+                    st.rerun()
+
 
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
 with tab2:
@@ -653,6 +676,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
