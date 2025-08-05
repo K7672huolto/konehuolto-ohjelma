@@ -183,6 +183,13 @@ with tab1:
             kone_id = ""
             kone_valinta = ""
 
+        # -- Muuttujat valmiiksi jotta näkyvät myös lomakkeen ulkopuolella
+        submit = reset = False
+        kayttotunnit = st.session_state.get("form_tunnit", "")
+        pvm = st.session_state.get("pvm", datetime.today())
+        valinnat = {HUOLTOKOHTEET[pitkä]: st.session_state.get(f"form_valinta_{pitkä}", "--") for pitkä in HUOLTOKOHTEET}
+        vapaa = st.session_state.get("form_vapaa", "")
+
         if kone_id:
             with st.form(key="huolto_form"):
                 col1, col2 = st.columns(2)
@@ -190,31 +197,30 @@ with tab1:
                     kayttotunnit = st.text_input(
                         "Tunnit/km",
                         key="form_tunnit",
-                        value=st.session_state.get("form_tunnit", "")
+                        value=kayttotunnit
                     )
                 with col2:
                     pvm = st.date_input(
                         "Päivämäärä",
-                        value=st.session_state.get("pvm", datetime.today()),
+                        value=pvm,
                         min_value=datetime(1990, 1, 1),
                         max_value=datetime(datetime.today().year + 10, 12, 31),
                         key="pvm"
                     )
                 st.markdown("#### Huoltokohteet")
                 vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
-                valinnat = {}
                 cols_huolto = st.columns(6)
                 for i, pitkä in enumerate(HUOLTOKOHTEET):
                     with cols_huolto[i % 6]:
                         valinnat[HUOLTOKOHTEET[pitkä]] = st.selectbox(
                             f"{pitkä}:", vaihtoehdot,
                             key=f"form_valinta_{pitkä}",
-                            index= vaihtoehdot.index(st.session_state.get(f"form_valinta_{pitkä}", "--"))
+                            index= vaihtoehdot.index(valinnat[HUOLTOKOHTEET[pitkä]])
                         )
                 vapaa = st.text_input(
                     "Vapaa teksti",
                     key="form_vapaa",
-                    value=st.session_state.get("form_vapaa", "")
+                    value=vapaa
                 )
 
                 col_submit, col_reset = st.columns([1, 1])
@@ -223,37 +229,39 @@ with tab1:
                 with col_reset:
                     reset = st.form_submit_button("Tyhjennä kentät")
 
-                if submit:
-                    if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
-                        st.warning("Täytä kaikki kentät!")
-                    else:
-                        uusi = {
-                            "HuoltoID": str(uuid.uuid4())[:8],
-                            "Kone": kone_valinta,
-                            "ID": kone_id,
-                            "Ryhmä": valittu_ryhma,
-                            "Tunnit": kayttotunnit,
-                            "Päivämäärä": pvm.strftime("%d.%m.%Y"),
-                            "Vapaa teksti": vapaa,
-                        }
-                        for lyhenne in LYHENTEET:
-                            uusi[lyhenne] = valinnat[lyhenne]
-                        uusi_df = pd.DataFrame([uusi])
-                        yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
-                        try:
-                            tallenna_huollot(yhdistetty)
-                            st.success("Huolto tallennettu!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Tallennus epäonnistui: {e}")
+        # Lomakkeen jälkeen
+        if submit:
+            if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
+                st.warning("Täytä kaikki kentät!")
+            else:
+                uusi = {
+                    "HuoltoID": str(uuid.uuid4())[:8],
+                    "Kone": kone_valinta,
+                    "ID": kone_id,
+                    "Ryhmä": valittu_ryhma,
+                    "Tunnit": kayttotunnit,
+                    "Päivämäärä": pvm.strftime("%d.%m.%Y"),
+                    "Vapaa teksti": vapaa,
+                }
+                for lyhenne in LYHENTEET:
+                    uusi[lyhenne] = valinnat[lyhenne]
+                uusi_df = pd.DataFrame([uusi])
+                yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
+                try:
+                    tallenna_huollot(yhdistetty)
+                    st.success("Huolto tallennettu!")
+                    st.experimental_rerun()
+                except Exception as e:
+                    st.error(f"Tallennus epäonnistui: {e}")
 
-                if reset:
-                    st.session_state["form_tunnit"] = ""
-                    st.session_state["form_vapaa"] = ""
-                    st.session_state["pvm"] = datetime.today()
-                    for pitkä in HUOLTOKOHTEET:
-                        st.session_state[f"form_valinta_{pitkä}"] = "--"
-                    st.rerun()
+        if reset:
+            st.session_state["form_tunnit"] = ""
+            st.session_state["form_vapaa"] = ""
+            st.session_state["pvm"] = datetime.today()
+            for pitkä in HUOLTOKOHTEET:
+                st.session_state[f"form_valinta_{pitkä}"] = "--"
+            st.experimental_rerun()
+
 
 
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
@@ -676,6 +684,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
