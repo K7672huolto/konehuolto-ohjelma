@@ -175,26 +175,35 @@ with tab1:
             for i in range(0, len(lst), n):
                 yield lst[i:i + n]
 
+        kone_valinta = ""
+        kone_id = ""
+
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
             koneet_lista = koneet_df2["Kone"].tolist()
-            n_per_row = 4  # koneet vierekkäin 4 kpl per rivi
+            n_per_row = 4  # Muuta tätä jos haluat enemmän/vähemmän vierekkäin
 
-            # Radio-napit riveissä
-            selected_kone = st.session_state.get("tab1_konevalinta_radio", koneet_lista[0] if koneet_lista else "")
+            # Haetaan valinta session_statesta tai asetetaan eka kone valituksi
+            selected_kone = st.session_state.get("tab1_konevalinta_select", koneet_lista[0] if koneet_lista else "")
+
+            # Koneen valinta nappiriveissä
             for row_koneet in split_list(koneet_lista, n_per_row):
                 cols = st.columns(len(row_koneet))
                 for idx, kone in enumerate(row_koneet):
-                    if cols[idx].radio(" ", [kone], key=f"tab1_radio_{kone}", index=0 if kone == selected_kone else -1):
+                    btn_style = ""
+                    if kone == selected_kone:
+                        btn_style = "background-color: #38d39f; color: white; font-weight: bold; border-radius: 8px;"
+                    if cols[idx].button(kone, key=f"tab1_btn_{kone}"):
                         selected_kone = kone
-                        st.session_state["tab1_konevalinta_radio"] = kone
-
+                        st.session_state["tab1_konevalinta_select"] = kone
+                    # Näytetään valittu nappi "aktiivisena"
+                    cols[idx].markdown(
+                        f"<div style='height:2px; {btn_style}'></div>", unsafe_allow_html=True
+                    )
             kone_valinta = selected_kone
             kone_id = koneet_df2[koneet_df2["Kone"] == kone_valinta]["ID"].values[0]
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
-            kone_id = ""
-            kone_valinta = ""
 
         if kone_id:
             with st.form(key="huolto_form"):
@@ -242,19 +251,19 @@ with tab1:
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
-                            # Tyhjennä kentät myös konevalinnasta:
+                            # Tyhjennä kaikki kentät, myös konevalinta:
                             st.session_state.pop("form_tunnit", None)
                             st.session_state.pop("pvm", None)
                             st.session_state.pop("form_vapaa", None)
-                            st.session_state.pop("tab1_konevalinta_radio", None)
+                            st.session_state.pop("tab1_konevalinta_select", None)
                             for pitkä in HUOLTOKOHTEET:
                                 st.session_state.pop(f"form_valinta_{pitkä}", None)
-                            # Poista kaikki koneiden radiot
                             for kone in koneet_lista:
-                                st.session_state.pop(f"tab1_radio_{kone}", None)
+                                st.session_state.pop(f"tab1_btn_{kone}", None)
                             st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
@@ -672,6 +681,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
