@@ -169,14 +169,27 @@ with tab1:
     else:
         valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="tab1_ryhma_select")
         koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
+
+        # Apufunktio koneiden rivittämiseen
+        def split_list(lst, n):
+            for i in range(0, len(lst), n):
+                yield lst[i:i + n]
+
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            kone_valinta = st.radio(
-                "Valitse kone:",
-                koneet_df2["Kone"].tolist(),
-                key="tab1_konevalinta_radio",
-                index=0 if len(koneet_df2) > 0 else None
-            )
+            koneet_lista = koneet_df2["Kone"].tolist()
+            n_per_row = 4  # koneet vierekkäin 4 kpl per rivi
+
+            # Radio-napit riveissä
+            selected_kone = st.session_state.get("tab1_konevalinta_radio", koneet_lista[0] if koneet_lista else "")
+            for row_koneet in split_list(koneet_lista, n_per_row):
+                cols = st.columns(len(row_koneet))
+                for idx, kone in enumerate(row_koneet):
+                    if cols[idx].radio(" ", [kone], key=f"tab1_radio_{kone}", index=0 if kone == selected_kone else -1):
+                        selected_kone = kone
+                        st.session_state["tab1_konevalinta_radio"] = kone
+
+            kone_valinta = selected_kone
             kone_id = koneet_df2[koneet_df2["Kone"] == kone_valinta]["ID"].values[0]
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
@@ -229,9 +242,20 @@ with tab1:
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
+                            # Tyhjennä kentät myös konevalinnasta:
+                            st.session_state.pop("form_tunnit", None)
+                            st.session_state.pop("pvm", None)
+                            st.session_state.pop("form_vapaa", None)
+                            st.session_state.pop("tab1_konevalinta_radio", None)
+                            for pitkä in HUOLTOKOHTEET:
+                                st.session_state.pop(f"form_valinta_{pitkä}", None)
+                            # Poista kaikki koneiden radiot
+                            for kone in koneet_lista:
+                                st.session_state.pop(f"tab1_radio_{kone}", None)
                             st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
 
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
 with tab2:
@@ -648,6 +672,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
