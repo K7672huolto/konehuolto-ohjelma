@@ -243,12 +243,7 @@ with tab2:
     if huolto_df.empty:
         st.info("Ei huoltoja tallennettu vielä.")
     else:
-        # Oletus: kaikki koneet/ryhmät järjestetään koneet_df:n perusteella, jos sellainen on
-        alkuperainen_ryhma_jarjestys = koneet_df["Ryhmä"].drop_duplicates().tolist() if not koneet_df.empty else sorted(huolto_df["Ryhmä"].unique())
-        alkuperainen_koneet_df = koneet_df.copy()
         df = huolto_df.copy().reset_index(drop=True)
-
-        # --- Suodatus UI ---
         ryhmat = ["Kaikki"] + sorted(df["Ryhmä"].unique())
         valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ryhmat, key="tab2_ryhma")
         filt = df if valittu_ryhma == "Kaikki" else df[df["Ryhmä"] == valittu_ryhma]
@@ -256,71 +251,31 @@ with tab2:
         valittu_kone = st.selectbox("Suodata koneen mukaan", koneet, key="tab2_kone")
         filt = filt if valittu_kone == "Kaikki" else filt[filt["Kone"] == valittu_kone]
 
-        # --- Järjestys ja koneet_df suodatus esikatseluun ---
-        if valittu_ryhma != "Kaikki":
-            ryhma_jarjestys = [valittu_ryhma]
-            koneet_df_esikatselu = alkuperainen_koneet_df[alkuperainen_koneet_df["Ryhmä"] == valittu_ryhma].copy()
-        else:
-            ryhma_jarjestys = alkuperainen_ryhma_jarjestys
-            koneet_df_esikatselu = alkuperainen_koneet_df.copy()
+        # Muodostetaan päivämäärä datetime-muotoon lajittelua varten
+        filt["pvm_dt"] = pd.to_datetime(filt["Päivämäärä"], dayfirst=True, errors="coerce")
+        # Lajitellaan ryhmä, kone, päivämäärä (vanhimmasta uusimpaan)
+        filt = filt.sort_values(["Ryhmä", "Kone", "pvm_dt"], ascending=[True, True, True]).reset_index(drop=True)
 
-        if valittu_kone != "Kaikki":
-            koneet_df_esikatselu = koneet_df_esikatselu[koneet_df_esikatselu["Kone"] == valittu_kone].copy()
+        nayta_cols = ["Kone", "ID", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
 
-        # ✔ -logiikka
-        def fmt_ok(x):
-            return "✔" if str(x).strip().upper() == "OK" else x
+        # Sarakeleveyden säätö
+        def leveys_styleri(df):
+            return df.style.set_properties(
+                subset=["Ryhmä"], **{'min-width': '120px', 'max-width': '240px', 'white-space': 'pre-wrap'}
+            )
 
-        # Esikatselufunktio (pysyy muuttumattomana)
-        def muodosta_esikatselu_ryhmissa(df, ryhma_jarjestys, koneet_df):
-            rows = []
-            huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-            for ryhma in ryhma_jarjestys:
-                koneet_ryhmassa = koneet_df[koneet_df["Ryhmä"] == ryhma]["Kone"].tolist()
-                if not koneet_ryhmassa:
-                    continue
-                rows.append([f"Ryhmä: {ryhma}"] + [""] * (len(huolto_cols) + 1))
-                for kone in koneet_ryhmassa:
-                    kone_df = df[(df["Kone"] == kone) & (df["Ryhmä"] == ryhma)].copy()
-                    if kone_df.empty:
-                        rows.append([kone, ryhma] + [""] * len(huolto_cols))
-                        continue
-                    kone_df["pvm_dt"] = pd.to_datetime(kone_df["Päivämäärä"], dayfirst=True, errors="coerce")
-                    kone_df = kone_df.sort_values("pvm_dt", ascending=True)
-                    id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
-                    huolto1 = [str(kone_df.iloc[0].get(col, "")) for col in huolto_cols]
-                    huolto1 = [fmt_ok(val) for val in huolto1]
-                    rows.append([kone, ryhma] + huolto1)
-                    if len(kone_df) > 1:
-                        huolto2 = [str(kone_df.iloc[1].get(col, "")) for col in huolto_cols]
-                        huolto2 = [fmt_ok(val) for val in huolto2]
-                        rows.append([id_, ""] + huolto2)
-                    else:
-                        rows.append([id_, ""] + [""] * len(huolto1))
-                    for i in range(2, len(kone_df)):
-                        huoltoN = [str(kone_df.iloc[i].get(col, "")) for col in huolto_cols]
-                        huoltoN = [fmt_ok(val) for val in huoltoN]
-                        rows.append(["", ""] + huoltoN)
-                    rows.append([""] * (2 + len(huolto1)))
-            if rows and all([cell == "" for cell in rows[-1]]):
-                rows.pop()
-            columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-            return pd.DataFrame(rows, columns=columns)
+        st.dataframe(leveys_styleri(filt[nayta_cols]), hide_index=True, use_container_width=True)
 
-        # --- Esikatselu DataFrame ---
-        df_naytto = muodosta_esikatselu_ryhmissa(filt, ryhma_jarjestys, koneet_df_esikatselu)
-        st.dataframe(df_naytto, hide_index=True, use_container_width=True)
-
-        # --- MUOKKAUS JA POISTO ---
+        # MUOKKAUS ja POISTO
         id_valinnat = [
             f"{row['Kone']} ({row['ID']}) {row['Päivämäärä']} (HuoltoID: {row['HuoltoID']})"
-            for _, row in df.iterrows()
+            for _, row in filt.iterrows()
         ]
         valittu_id_valinta = st.selectbox("Valitse muokattava huolto", [""] + id_valinnat, key="tab2_muokkaa_id")
 
         if valittu_id_valinta:
             valittu_huoltoid = valittu_id_valinta.split("HuoltoID: ")[-1].replace(")", "").strip()
-            valittu = df[df["HuoltoID"].astype(str) == valittu_huoltoid].iloc[0]
+            valittu = filt[filt["HuoltoID"].astype(str) == valittu_huoltoid].iloc[0]
             uusi_tunnit = st.text_input("Tunnit/km", value=valittu.get("Tunnit", ""), key="tab2_edit_tunnit")
             uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""), key="tab2_edit_pvm")
             uusi_vapaa = st.text_input("Vapaa teksti", value=valittu.get("Vapaa teksti", ""), key="tab2_edit_vapaa")
@@ -338,6 +293,7 @@ with tab2:
                     key=f"tab2_edit_{lyhenne}"
                 )
             if st.button("Tallenna muutokset", key="tab2_tallenna_muokkaa"):
+                # Muokataan arvoja koko alkuperäisessä DataFramessa!
                 idx = df[df["HuoltoID"].astype(str) == valittu_huoltoid].index[0]
                 df.at[idx, "Tunnit"] = uusi_tunnit
                 df.at[idx, "Päivämäärä"] = uusi_pvm
@@ -657,6 +613,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
