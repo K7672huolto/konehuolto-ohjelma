@@ -305,7 +305,15 @@ with tab2:
 
         # --- Esikatselu DataFrame ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, ryhma_jarjestys, koneet_df_esikatselu)
-        st.dataframe(df_naytto, hide_index=True, use_container_width=True)
+        st.dataframe(
+            df_naytto,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "Ryhmä": st.column_config.Column(width="large")
+            }
+        )
+
 
         # --- MUOKKAUS JA POISTO ---
         id_valinnat = [
@@ -653,6 +661,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
