@@ -309,7 +309,10 @@ with tab2:
 
         # --- Esikatselu DataFrame ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, ryhma_jarjestys, koneet_df_esikatselu)
-        st.dataframe(df_naytto, hide_index=True, use_container_width=True)
+        def leveys_styleri(df):
+            return df.style.set_properties(
+                subset=["Ryhmä"], **{'min-width': '120px', 'max-width': '240px', 'white-space': 'pre-wrap'}
+            )
 
         # --- MUOKKAUS JA POISTO ---
         id_valinnat = [
