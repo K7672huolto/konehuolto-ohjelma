@@ -233,10 +233,6 @@ with tab1:
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
 
-
-
-
-
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
 with tab2:
     st.header("Huoltohistoria")
@@ -309,10 +305,7 @@ with tab2:
 
         # --- Esikatselu DataFrame ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, ryhma_jarjestys, koneet_df_esikatselu)
-        def leveys_styleri(df):
-            return df.style.set_properties(
-                subset=["Ryhmä"], **{'min-width': '120px', 'max-width': '240px', 'white-space': 'pre-wrap'}
-            )
+        st.dataframe(df_naytto, hide_index=True, use_container_width=True)
 
         # --- MUOKKAUS JA POISTO ---
         id_valinnat = [
@@ -660,8 +653,6 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
-
-
 
 
 
