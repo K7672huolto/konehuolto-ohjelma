@@ -334,7 +334,7 @@ with tab2:
             hide_index=True,
             use_container_width=True,
             # column_config={
-            #     "Ryhmä": st.column_config.Column(width="small")  # vaihtoehdot: "small" | "medium" | "large" | "fit_content"
+            #     "Ryhmä": st.column_config.Column(width="medium")  # vaihtoehdot: "small" | "medium" | "large" | "fit_content"
             # }
         )
 
@@ -699,6 +699,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
