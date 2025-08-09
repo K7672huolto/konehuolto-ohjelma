@@ -461,7 +461,7 @@ with tab2:
                     if col_idx == 0 and teksti.strip() != "":  
                         # Koneen nimi sarake (col_idx 0) → bold
                         out.append(Paragraph(f"<b>{teksti}</b>", ParagraphStyle(name="bold", fontName="Helvetica-Bold", fontSize=8)))
-                        elif teksti.strip() == "✔":
+                    elif teksti.strip() == "✔":
                         out.append(Paragraph('<font color="green">✔</font>', vihrea))
                     else:
                         out.append(teksti)
@@ -704,6 +704,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
