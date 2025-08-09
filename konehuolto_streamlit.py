@@ -185,7 +185,8 @@ with tab1:
             kone_valinta = ""
 
         if kone_id:
-            with st.form(key="huolto_form"):
+            with st.form(key="huolto_form", clear_on_submit=True):
+
                 col1, col2 = st.columns(2)
                 with col1:
                     kayttotunnit = st.text_input("Tunnit/km", key="form_tunnit")
@@ -237,6 +238,7 @@ with tab1:
                             for key in list(st.session_state.keys()):
                                 if key.startswith("form_") or key in ["pvm", "tab1_konevalinta_radio"]:
                                     st.session_state[key] = "" if not isinstance(st.session_state[key], datetime) else datetime.today()
+
 
                             st.rerun()
 
@@ -715,6 +717,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
