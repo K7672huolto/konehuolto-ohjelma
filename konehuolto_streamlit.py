@@ -185,8 +185,8 @@ with tab1:
             kone_valinta = ""
 
         if kone_id:
+            # clear_on_submit tyhjentää kentät automaattisesti tallennuksen jälkeen
             with st.form(key="huolto_form", clear_on_submit=True):
-
                 col1, col2 = st.columns(2)
                 with col1:
                     kayttotunnit = st.text_input("Tunnit/km", key="form_tunnit")
@@ -198,6 +198,7 @@ with tab1:
                         max_value=datetime(datetime.today().year + 10, 12, 31),
                         key="pvm"
                     )
+
                 st.markdown("#### Huoltokohteet")
                 vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
                 valinnat = {}
@@ -209,9 +210,10 @@ with tab1:
                             key=f"form_valinta_{pitkä}",
                             index=0
                         )
-                vapaa = st.text_input("Vapaa teksti", key="form_vapaa")
-                submit = st.form_submit_button("Tallenna huolto")
 
+                vapaa = st.text_input("Vapaa teksti", key="form_vapaa")
+
+                submit = st.form_submit_button("Tallenna huolto")
                 if submit:
                     if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
                         st.warning("Täytä kaikki kentät!")
@@ -227,23 +229,17 @@ with tab1:
                         }
                         for lyhenne in LYHENTEET:
                             uusi[lyhenne] = valinnat[lyhenne]
+
                         uusi_df = pd.DataFrame([uusi])
                         yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
 
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
-
-                            # Tyhjennetään lomakekentät
-                            for key in list(st.session_state.keys()):
-                                if key.startswith("form_") or key in ["pvm", "tab1_konevalinta_radio"]:
-                                    st.session_state[key] = "" if not isinstance(st.session_state[key], datetime) else datetime.today()
-
-
-                            st.rerun()
-
+                            st.rerun()  # Lataa sivun uudelleen, lomake tyhjenee clear_on_submit:n ansiosta
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
@@ -717,6 +713,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
