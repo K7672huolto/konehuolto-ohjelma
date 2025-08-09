@@ -239,20 +239,26 @@ with tab2:
     if huolto_df.empty:
         st.info("Ei huoltoja tallennettu vielä.")
     else:
-        # Oletus: kaikki koneet/ryhmät järjestetään koneet_df:n perusteella, jos sellainen on
-        alkuperainen_ryhma_jarjestys = koneet_df["Ryhmä"].drop_duplicates().tolist() if not koneet_df.empty else sorted(huolto_df["Ryhmä"].unique())
+        # --- Pohjadatat ---
+        alkuperainen_ryhma_jarjestys = (
+            koneet_df["Ryhmä"].drop_duplicates().tolist()
+            if not koneet_df.empty
+            else sorted(huolto_df["Ryhmä"].unique())
+        )
         alkuperainen_koneet_df = koneet_df.copy()
         df = huolto_df.copy().reset_index(drop=True)
 
         # --- Suodatus UI ---
         ryhmat = ["Kaikki"] + sorted(df["Ryhmä"].unique())
         valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ryhmat, key="tab2_ryhma")
+
         filt = df if valittu_ryhma == "Kaikki" else df[df["Ryhmä"] == valittu_ryhma]
         koneet = ["Kaikki"] + sorted(filt["Kone"].unique())
         valittu_kone = st.selectbox("Suodata koneen mukaan", koneet, key="tab2_kone")
+
         filt = filt if valittu_kone == "Kaikki" else filt[filt["Kone"] == valittu_kone]
 
-        # --- Järjestys ja koneet_df suodatus esikatseluun ---
+        # --- Järjestys esikatseluun (koneet koneet_df:n mukaisessa järjestyksessä) ---
         if valittu_ryhma != "Kaikki":
             ryhma_jarjestys = [valittu_ryhma]
             koneet_df_esikatselu = alkuperainen_koneet_df[alkuperainen_koneet_df["Ryhmä"] == valittu_ryhma].copy()
@@ -267,67 +273,87 @@ with tab2:
         def fmt_ok(x):
             return "✔" if str(x).strip().upper() == "OK" else x
 
-        # Esikatselufunktio (pysyy muuttumattomana)
-        def muodosta_esikatselu_ryhmissa(df, ryhma_jarjestys, koneet_df):
+        # --- Esikatselun rakentaja: ei ryhmäotsikkorivejä ---
+        def muodosta_esikatselu_ryhmissa(df_src, ryhmajarj, koneet_src_df):
             rows = []
             huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-            for ryhma in ryhma_jarjestys:
-                koneet_ryhmassa = koneet_df[koneet_df["Ryhmä"] == ryhma]["Kone"].tolist()
+
+            for ryhma in ryhmajarj:
+                koneet_ryhmassa = koneet_src_df[koneet_src_df["Ryhmä"] == ryhma]["Kone"].tolist()
                 if not koneet_ryhmassa:
                     continue
+
                 for kone in koneet_ryhmassa:
-                    kone_df = df[(df["Kone"] == kone) & (df["Ryhmä"] == ryhma)].copy()
+                    kone_df = df_src[(df_src["Kone"] == kone) & (df_src["Ryhmä"] == ryhma)].copy()
                     if kone_df.empty:
-                        rows.append([kone, ryhma] + [""] * len(huolto_cols))  # Kone + ryhmä
+                        # Ei huoltoja: näytä kone + ryhmä, muut tyhjänä
+                        rows.append([kone, ryhma] + [""] * len(huolto_cols))
                         continue
+
+                    # Kronologinen järjestys koneen sisällä
                     kone_df["pvm_dt"] = pd.to_datetime(kone_df["Päivämäärä"], dayfirst=True, errors="coerce")
                     kone_df = kone_df.sort_values("pvm_dt", ascending=True)
+
                     id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
+
+                    # 1. huoltorivi: Kone + Ryhmä
                     huolto1 = [str(kone_df.iloc[0].get(col, "")) for col in huolto_cols]
                     huolto1 = [fmt_ok(val) for val in huolto1]
-                    rows.append([kone, ryhma] + huolto1)   # Kone + ryhmä
+                    rows.append([kone, ryhma] + huolto1)
+
+                    # 2. rivi: ID + (Ryhmä tyhjä)
                     if len(kone_df) > 1:
                         huolto2 = [str(kone_df.iloc[1].get(col, "")) for col in huolto_cols]
                         huolto2 = [fmt_ok(val) for val in huolto2]
-                        rows.append([id_, ""] + huolto2)  # ID + (ryhmä tyhjä)
+                        rows.append([id_, ""] + huolto2)
                     else:
                         rows.append([id_, ""] + [""] * len(huolto1))
+
+                    # Mahdolliset lisähuollot: ensimmäiset 2 jo käytetty
                     for i in range(2, len(kone_df)):
                         huoltoN = [str(kone_df.iloc[i].get(col, "")) for col in huolto_cols]
                         huoltoN = [fmt_ok(val) for val in huoltoN]
-                        rows.append(["", ""] + huoltoN)   # tyhjät ekat kaksi saraketta
-                    rows.append([""] * (2 + len(huolto1)))  # tyhjä rivi koneiden väliin
-            if rows and all([cell == "" for cell in rows[-1]]):
+                        rows.append(["", ""] + huoltoN)
+
+                    # Tyhjä erotusrivi koneiden väliin
+                    rows.append([""] * (2 + len(huolto1)))
+
+            if rows and all(cell == "" for cell in rows[-1]):
                 rows.pop()
+
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
             return pd.DataFrame(rows, columns=columns)
 
-
         # --- Esikatselu DataFrame ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, ryhma_jarjestys, koneet_df_esikatselu)
+
+        # Perusdataframe. Jos haluat säätää vain "Ryhmä" leveämpään,
+        # voit käyttää column_configia (kommentoi auki tarvittaessa):
         st.dataframe(
             df_naytto,
             hide_index=True,
             use_container_width=True,
-            column_config={
-                "Ryhmä": st.column_config.Column(width="medium")
-            }
+            # column_config={
+            #     "Ryhmä": st.column_config.Column(width="small")  # vaihtoehdot: "small" | "medium" | "large" | "fit_content"
+            # }
         )
 
-
         # --- MUOKKAUS JA POISTO ---
+        # Muokattavan valinta rakentuu suodatetusta 'filt'istä (kronologinen/lajiteltu myöhemmin PDF:ssä/esikatselussa)
         id_valinnat = [
             f"{row['Kone']} ({row['ID']}) {row['Päivämäärä']} (HuoltoID: {row['HuoltoID']})"
-            for _, row in df.iterrows()
+            for _, row in filt.iterrows()
         ]
         valittu_id_valinta = st.selectbox("Valitse muokattava huolto", [""] + id_valinnat, key="tab2_muokkaa_id")
 
         if valittu_id_valinta:
             valittu_huoltoid = valittu_id_valinta.split("HuoltoID: ")[-1].replace(")", "").strip()
             valittu = df[df["HuoltoID"].astype(str) == valittu_huoltoid].iloc[0]
+
             uusi_tunnit = st.text_input("Tunnit/km", value=valittu.get("Tunnit", ""), key="tab2_edit_tunnit")
             uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""), key="tab2_edit_pvm")
             uusi_vapaa = st.text_input("Vapaa teksti", value=valittu.get("Vapaa teksti", ""), key="tab2_edit_vapaa")
+
             uusi_kohta = {}
             for pitkä, lyhenne in HUOLTOKOHTEET.items():
                 vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
@@ -341,7 +367,9 @@ with tab2:
                     index=vaihtoehdot_upper.index(arvo),
                     key=f"tab2_edit_{lyhenne}"
                 )
-            if st.button("Tallenna muutokset", key="tab2_tallenna_muokkaa"):
+
+            col_save, col_del = st.columns(2)
+            if col_save.button("Tallenna muutokset", key="tab2_tallenna_muokkaa"):
                 idx = df[df["HuoltoID"].astype(str) == valittu_huoltoid].index[0]
                 df.at[idx, "Tunnit"] = uusi_tunnit
                 df.at[idx, "Päivämäärä"] = uusi_pvm
@@ -351,157 +379,122 @@ with tab2:
                 tallenna_huollot(df)
                 st.success("Tallennettu!")
                 st.rerun()
-            if st.button("Poista tämä huolto", key="tab2_poista_huolto"):
+
+            if col_del.button("Poista tämä huolto", key="tab2_poista_huolto"):
                 df = df[df["HuoltoID"].astype(str) != valittu_huoltoid]
                 tallenna_huollot(df)
                 st.success("Huolto poistettu!")
                 st.rerun()
 
-        # --- PDF-lataus (käyttää samoja suodatuksia kuin esikatselu) ---
-        def tee_pdf_data_ryhmissa(df, ryhma_jarjestys, koneet_df):
+        # --- PDF: sama rakenne kuin esikatselussa, ei ryhmäotsikkorivejä ---
+        def lataa_pdf_ilman_ryhmaotsikoita(df_src, ryhmajarj, koneet_src_df):
+            buffer = BytesIO()
+            vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
+            otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
+            paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
+            otsikko = Paragraph("Huoltohistoria", otsikkotyyli)
+
+            def pdf_footer(canvas, doc):
+                canvas.saveState()
+                canvas.setFont('Helvetica', 8)
+                canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
+                canvas.restoreState()
+
+            doc = SimpleDocTemplate(
+                buffer, pagesize=landscape(A4),
+                rightMargin=0.5 * inch, leftMargin=0.5 * inch,
+                topMargin=0.7 * inch, bottomMargin=0.5 * inch
+            )
+
             rows = []
             huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-            for ryhma in ryhma_jarjestys:
-                koneet_ryhmassa = koneet_df[koneet_df["Ryhmä"] == ryhma]["Kone"].tolist()
+
+            for ryhma in ryhmajarj:
+                koneet_ryhmassa = koneet_src_df[koneet_src_df["Ryhmä"] == ryhma]["Kone"].tolist()
                 if not koneet_ryhmassa:
                     continue
-                rows.append([f"Ryhmä: {ryhma}"] + [""] * (len(huolto_cols) + 1))
+
                 for kone in koneet_ryhmassa:
-                    kone_df = df[(df["Kone"] == kone) & (df["Ryhmä"] == ryhma)].copy()
+                    kone_df = df_src[(df_src["Kone"] == kone) & (df_src["Ryhmä"] == ryhma)].copy()
                     if kone_df.empty:
                         rows.append([kone, ryhma] + [""] * len(huolto_cols))
                         continue
+
+                    # Kronologinen järjestys koneen sisällä
                     kone_df["pvm_dt"] = pd.to_datetime(kone_df["Päivämäärä"], dayfirst=True, errors="coerce")
                     kone_df = kone_df.sort_values("pvm_dt", ascending=True)
+
                     id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
-                    huolto1 = [str(kone_df.iloc[0].get(col, "")) for col in huolto_cols]
-                    huolto1 = [fmt_ok(val) for val in huolto1]
+
+                    # 1. rivi: kone + ryhmä
+                    huolto1 = [str(kone_df.iloc[0].get(c, "")) for c in huolto_cols]
+                    huolto1 = ["✔" if str(v).strip().upper() == "OK" else v for v in huolto1]
                     rows.append([kone, ryhma] + huolto1)
+
+                    # 2. rivi: ID + ryhmä tyhjä
                     if len(kone_df) > 1:
-                        huolto2 = [str(kone_df.iloc[1].get(col, "")) for col in huolto_cols]
-                        huolto2 = [fmt_ok(val) for val in huolto2]
+                        huolto2 = [str(kone_df.iloc[1].get(c, "")) for c in huolto_cols]
+                        huolto2 = ["✔" if str(v).strip().upper() == "OK" else v for v in huolto2]
                         rows.append([id_, ""] + huolto2)
                     else:
                         rows.append([id_, ""] + [""] * len(huolto1))
+
+                    # Lisää huollot
                     for i in range(2, len(kone_df)):
-                        huoltoN = [str(kone_df.iloc[i].get(col, "")) for col in huolto_cols]
-                        huoltoN = [fmt_ok(val) for val in huoltoN]
+                        huoltoN = [str(kone_df.iloc[i].get(c, "")) for c in huolto_cols]
+                        huoltoN = ["✔" if str(v).strip().upper() == "OK" else v for v in huoltoN]
                         rows.append(["", ""] + huoltoN)
+
+                    # Tyhjä rivi koneiden väliin
                     rows.append([""] * (2 + len(huolto1)))
-            if rows and all([cell == "" for cell in rows[-1]]):
+
+            if rows and all(cell == "" for cell in rows[-1]):
                 rows.pop()
+
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-            return [columns] + rows
+            data = [columns] + rows
 
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.pagesizes import landscape, A4
-from reportlab.lib import colors
-from reportlab.lib.units import inch, mm
-from io import BytesIO
-from datetime import datetime
+            def pdf_rivi(rivi):
+                out = []
+                for cell in rivi:
+                    if str(cell).strip() == "✔":
+                        out.append(Paragraph('<font color="green">✔</font>', vihrea))
+                    else:
+                        out.append(str(cell) if cell is not None else "")
+                return out
 
-def lataa_pdf_ilman_ryhmaotsikoita(df, ryhma_jarjestys, koneet_df):
-    buffer = BytesIO()
-    vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
-    otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
-    paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
-    otsikko = Paragraph("Huoltohistoria", otsikkotyyli)
+            table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
+            sarakeleveys = [110, 80, 55, 60] + [30 for _ in LYHENTEET] + [160]
+            table = Table(table_data, repeatRows=1, colWidths=sarakeleveys)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
 
-    def pdf_footer(canvas, doc):
-        canvas.saveState()
-        canvas.setFont('Helvetica', 8)
-        canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
-        canvas.restoreState()
+            doc.build(
+                [Spacer(1, 4 * mm),
+                 Table([[otsikko, paivays]], colWidths=[340, 340], style=[
+                     ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                     ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                     ("VALIGN", (0,0), (-1,-1), "TOP"),
+                     ("BOTTOMPADDING", (0,0), (-1,-1), 0),
+                     ("TOPPADDING", (0,0), (-1,-1), 0),
+                 ]),
+                 Spacer(1, 4 * mm),
+                 table],
+                onFirstPage=pdf_footer,
+                onLaterPages=pdf_footer
+            )
+            buffer.seek(0)
+            return buffer
 
-    doc = SimpleDocTemplate(
-        buffer, pagesize=landscape(A4),
-        rightMargin=0.5 * inch, leftMargin=0.5 * inch,
-        topMargin=0.7 * inch, bottomMargin=0.5 * inch
-    )
-
-    # Rakenna data: ei ryhmäotsikko-rivejä
-    rows = []
-    huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-    for ryhma in ryhma_jarjestys:
-        koneet_ryhmassa = koneet_df[koneet_df["Ryhmä"] == ryhma]["Kone"].tolist()
-        if not koneet_ryhmassa:
-            continue
-        for kone in koneet_ryhmassa:
-            kone_df = df[(df["Kone"] == kone) & (df["Ryhmä"] == ryhma)].copy()
-            if kone_df.empty:
-                rows.append([kone, ryhma] + [""] * len(huolto_cols))
-                continue
-            kone_df["pvm_dt"] = pd.to_datetime(kone_df["Päivämäärä"], dayfirst=True, errors="coerce")
-            kone_df = kone_df.sort_values("pvm_dt", ascending=True)
-            id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
-            # 1. huoltorivi: kone + ryhmä
-            huolto1 = [str(kone_df.iloc[0].get(c, "")) for c in huolto_cols]
-            huolto1 = ["✔" if str(v).strip().upper() == "OK" else v for v in huolto1]
-            rows.append([kone, ryhma] + huolto1)
-            # 2. rivi: ID + ryhmä tyhjä
-            if len(kone_df) > 1:
-                huolto2 = [str(kone_df.iloc[1].get(c, "")) for c in huolto_cols]
-                huolto2 = ["✔" if str(v).strip().upper() == "OK" else v for v in huolto2]
-                rows.append([id_, ""] + huolto2)
-            else:
-                rows.append([id_, ""] + [""] * len(huolto1))
-            # Mahdolliset lisähuollot
-            for i in range(2, len(kone_df)):
-                huoltoN = [str(kone_df.iloc[i].get(c, "")) for c in huolto_cols]
-                huoltoN = ["✔" if str(v).strip().upper() == "OK" else v for v in huoltoN]
-                rows.append(["", ""] + huoltoN)
-            # Tyhjä rivi koneiden väliin
-            rows.append([""] * (2 + len(huolto1)))
-
-    if rows and all(cell == "" for cell in rows[-1]):
-        rows.pop()
-
-    columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-    data = [columns] + rows
-
-    def pdf_rivi(rivi):
-        out = []
-        for cell in rivi:
-            if str(cell).strip() == "✔":
-                out.append(Paragraph('<font color="green">✔</font>', vihrea))
-            else:
-                out.append(str(cell) if cell is not None else "")
-        return out
-
-    table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
-    sarakeleveys = [110, 80, 55, 60] + [30 for _ in LYHENTEET] + [160]
-    table = Table(table_data, repeatRows=1, colWidths=sarakeleveys)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-
-    doc.build(
-        [Spacer(1, 4 * mm),
-         Table([[otsikko, paivays]], colWidths=[340, 340], style=[
-             ("ALIGN", (0, 0), (0, 0), "LEFT"),
-             ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-             ("VALIGN", (0,0), (-1,-1), "TOP"),
-             ("BOTTOMPADDING", (0,0), (-1,-1), 0),
-             ("TOPPADDING", (0,0), (-1,-1), 0),
-         ]),
-         Spacer(1, 4 * mm),
-         table],
-        onFirstPage=pdf_footer,
-        onLaterPages=pdf_footer
-    )
-    buffer.seek(0)
-    return buffer
-
-
-
+        # --- Lataa PDF -nappi ---
         if st.button("Lataa PDF", key="lataa_pdf_tab2"):
             pdfdata = lataa_pdf_ilman_ryhmaotsikoita(filt, ryhma_jarjestys, koneet_df_esikatselu)
             st.download_button(
@@ -510,6 +503,7 @@ def lataa_pdf_ilman_ryhmaotsikoita(df, ryhma_jarjestys, koneet_df):
                 file_name="huoltohistoria.pdf",
                 mime="application/pdf"
             )
+
 
 
 
@@ -705,6 +699,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
