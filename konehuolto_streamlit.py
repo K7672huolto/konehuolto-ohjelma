@@ -161,6 +161,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # ----------- TAB 1: LISÄÄ HUOLTO -----------
+# ----------- TAB 1: LISÄÄ HUOLTO -----------
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
     ryhmat_lista = sorted(list(koneet_data.keys()))
@@ -209,6 +210,7 @@ with tab1:
                         )
                 vapaa = st.text_input("Vapaa teksti", key="form_vapaa")
                 submit = st.form_submit_button("Tallenna huolto")
+
                 if submit:
                     if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
                         st.warning("Täytä kaikki kentät!")
@@ -226,12 +228,21 @@ with tab1:
                             uusi[lyhenne] = valinnat[lyhenne]
                         uusi_df = pd.DataFrame([uusi])
                         yhdistetty = pd.concat([huolto_df, uusi_df], ignore_index=True)
+
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
+
+                            # Tyhjennetään lomakekentät
+                            for key in list(st.session_state.keys()):
+                                if key.startswith("form_") or key in ["pvm", "tab1_konevalinta_radio"]:
+                                    st.session_state[key] = "" if not isinstance(st.session_state[key], datetime) else datetime.today()
+
                             st.rerun()
+
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
 
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
 with tab2:
@@ -704,6 +715,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
