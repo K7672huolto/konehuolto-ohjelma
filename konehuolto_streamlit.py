@@ -282,7 +282,7 @@ with tab2:
         def fmt_ok(x):
             return "✔" if str(x).strip().upper() == "OK" else x
 
-        # --- Esikatselun rakentaja: ei ryhmäotsikkorivejä ---
+        # --- Esikatselu: ei ryhmäotsikkorivejä, kronologinen per kone ---
         def muodosta_esikatselu_ryhmissa(df_src, ryhmajarj, koneet_src_df):
             rows = []
             huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
@@ -295,7 +295,6 @@ with tab2:
                 for kone in koneet_ryhmassa:
                     kone_df = df_src[(df_src["Kone"] == kone) & (df_src["Ryhmä"] == ryhma)].copy()
                     if kone_df.empty:
-                        # Ei huoltoja: näytä kone + ryhmä, muut tyhjänä
                         rows.append([kone, ryhma] + [""] * len(huolto_cols))
                         continue
 
@@ -318,7 +317,7 @@ with tab2:
                     else:
                         rows.append([id_, ""] + [""] * len(huolto1))
 
-                    # Mahdolliset lisähuollot: ensimmäiset 2 jo käytetty
+                    # Mahdolliset lisähuollot
                     for i in range(2, len(kone_df)):
                         huoltoN = [str(kone_df.iloc[i].get(col, "")) for col in huolto_cols]
                         huoltoN = [fmt_ok(val) for val in huoltoN]
@@ -335,20 +334,14 @@ with tab2:
 
         # --- Esikatselu DataFrame ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, ryhma_jarjestys, koneet_df_esikatselu)
-
-        # Perusdataframe. Jos haluat säätää vain "Ryhmä" leveämpään,
-        # voit käyttää column_configia (kommentoi auki tarvittaessa):
         st.dataframe(
             df_naytto,
             hide_index=True,
             use_container_width=True,
-            # column_config={
-            #     "Ryhmä": st.column_config.Column(width="medium")  # vaihtoehdot: "small" | "medium" | "large" | "fit_content"
-            # }
+            # column_config={"Ryhmä": st.column_config.Column(width="medium")}
         )
 
         # --- MUOKKAUS JA POISTO ---
-        # Muokattavan valinta rakentuu suodatetusta 'filt'istä (kronologinen/lajiteltu myöhemmin PDF:ssä/esikatselussa)
         id_valinnat = [
             f"{row['Kone']} ({row['ID']}) {row['Päivämäärä']} (HuoltoID: {row['HuoltoID']})"
             for _, row in filt.iterrows()
@@ -378,7 +371,9 @@ with tab2:
                 )
 
             col_save, col_del = st.columns(2)
+
             if col_save.button("Tallenna muutokset", key="tab2_tallenna_muokkaa"):
+                # Päivitä Huollot
                 idx = df[df["HuoltoID"].astype(str) == valittu_huoltoid].index[0]
                 df.at[idx, "Tunnit"] = uusi_tunnit
                 df.at[idx, "Päivämäärä"] = uusi_pvm
@@ -386,7 +381,37 @@ with tab2:
                 for lyhenne in uusi_kohta:
                     df.at[idx, lyhenne] = uusi_kohta[lyhenne]
                 tallenna_huollot(df)
-                st.success("Tallennettu!")
+
+                # --- Päivitä / lisää myös Käyttötunnit-sheet ---
+                try:
+                    ws_tunnit = get_gsheet_connection("Käyttötunnit")
+                    values = ws_tunnit.get_all_values()
+                    # Headerit jos tyhjä
+                    if not values or not any("Aika" in s for s in values[0]):
+                        ws_tunnit.append_row(["Aika", "Kone", "Ryhmä", "Uudet tunnit", "Erotus"])
+
+                    data = ws_tunnit.get_all_records()
+                    kone_nimi = str(valittu.get("Kone", ""))
+                    ryhma_nimi = str(valittu.get("Ryhmä", ""))
+                    try:
+                        uusi_arvo = int(float(str(uusi_tunnit).replace(",", ".")))
+                    except:
+                        uusi_arvo = 0
+                    aika_nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+
+                    paivitetty = False
+                    # etsi rivinumero päivitystä varten (alkaa 2:sta otsikon jälkeen)
+                    for i, r in enumerate(data, start=2):
+                        if r.get("Kone") == kone_nimi:
+                            ws_tunnit.update(f"A{i}:E{i}", [[aika_nyt, kone_nimi, ryhma_nimi, uusi_arvo, ""]])
+                            paivitetty = True
+                            break
+                    if not paivitetty:
+                        ws_tunnit.append_row([aika_nyt, kone_nimi, ryhma_nimi, uusi_arvo, ""])
+                except Exception as e:
+                    st.error(f"Käyttötunnit-sheetin päivitys epäonnistui: {e}")
+
+                st.success("Tallennettu (Huollot + Käyttötunnit)!")
                 st.rerun()
 
             if col_del.button("Poista tämä huolto", key="tab2_poista_huolto"):
@@ -395,11 +420,22 @@ with tab2:
                 st.success("Huolto poistettu!")
                 st.rerun()
 
-        # --- PDF: sama rakenne kuin esikatselussa, ei ryhmäotsikkorivejä ---
+        # --- PDF: sama rakenne kuin esikatselussa, ei ryhmäotsikoita, koneen nimi bold ---
+        from io import BytesIO
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.pagesizes import landscape, A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib import colors
+        from reportlab.lib.units import inch, mm
+
         def lataa_pdf_ilman_ryhmaotsikoita(df_src, ryhmajarj, koneet_src_df):
             buffer = BytesIO()
             vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
             otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
+            styles = getSampleStyleSheet()
+            kone_bold = ParagraphStyle(name="kone_bold", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=8)
+            norm = ParagraphStyle(name="norm", parent=styles["Normal"], fontSize=8)
+
             paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
             otsikko = Paragraph("Huoltohistoria", otsikkotyyli)
 
@@ -415,6 +451,7 @@ with tab2:
                 topMargin=0.7 * inch, bottomMargin=0.5 * inch
             )
 
+            # Rakenna data kuten esikatselussa
             rows = []
             huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
 
@@ -429,18 +466,15 @@ with tab2:
                         rows.append([kone, ryhma] + [""] * len(huolto_cols))
                         continue
 
-                    # Kronologinen järjestys koneen sisällä
                     kone_df["pvm_dt"] = pd.to_datetime(kone_df["Päivämäärä"], dayfirst=True, errors="coerce")
                     kone_df = kone_df.sort_values("pvm_dt", ascending=True)
 
                     id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
 
-                    # 1. rivi: kone + ryhmä
                     huolto1 = [str(kone_df.iloc[0].get(c, "")) for c in huolto_cols]
                     huolto1 = ["✔" if str(v).strip().upper() == "OK" else v for v in huolto1]
                     rows.append([kone, ryhma] + huolto1)
 
-                    # 2. rivi: ID + ryhmä tyhjä
                     if len(kone_df) > 1:
                         huolto2 = [str(kone_df.iloc[1].get(c, "")) for c in huolto_cols]
                         huolto2 = ["✔" if str(v).strip().upper() == "OK" else v for v in huolto2]
@@ -448,38 +482,36 @@ with tab2:
                     else:
                         rows.append([id_, ""] + [""] * len(huolto1))
 
-                    # Lisää huollot
                     for i in range(2, len(kone_df)):
                         huoltoN = [str(kone_df.iloc[i].get(c, "")) for c in huolto_cols]
                         huoltoN = ["✔" if str(v).strip().upper() == "OK" else v for v in huoltoN]
                         rows.append(["", ""] + huoltoN)
 
-                    # Tyhjä rivi koneiden väliin
                     rows.append([""] * (2 + len(huolto1)))
 
             if rows and all(cell == "" for cell in rows[-1]):
                 rows.pop()
 
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
-            data = [columns] + rows
+            data = [columns]
 
+            # Muunna PDF-solut; koneen nimi bold, ✔ vihreänä
             def pdf_rivi(rivi):
                 out = []
                 for col_idx, cell in enumerate(rivi):
-                    teksti = str(cell) if cell is not None else ""
-                    if col_idx == 0 and teksti.strip() != "":  
-                        # Koneen nimi sarake (col_idx 0) → bold
-                        out.append(Paragraph(f"<b>{teksti}</b>", ParagraphStyle(name="bold", fontName="Helvetica-Bold", fontSize=8)))
+                    teksti = "" if cell is None else str(cell)
+                    if col_idx == 0 and teksti.strip() != "":
+                        out.append(Paragraph(teksti, kone_bold))
                     elif teksti.strip() == "✔":
                         out.append(Paragraph('<font color="green">✔</font>', vihrea))
                     else:
-                        out.append(teksti)
+                        out.append(Paragraph(teksti, norm))
                 return out
 
+            data += [pdf_rivi(r) for r in rows]
 
-            table_data = [data[0]] + [pdf_rivi(r) for r in data[1:]]
             sarakeleveys = [110, 80, 55, 60] + [30 for _ in LYHENTEET] + [160]
-            table = Table(table_data, repeatRows=1, colWidths=sarakeleveys)
+            table = Table(data, repeatRows=1, colWidths=sarakeleveys)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -508,7 +540,7 @@ with tab2:
             buffer.seek(0)
             return buffer
 
-        # --- Lataa PDF -nappi ---
+        # Näppäin + lataus
         if st.button("Lataa PDF", key="lataa_pdf_tab2"):
             pdfdata = lataa_pdf_ilman_ryhmaotsikoita(filt, ryhma_jarjestys, koneet_df_esikatselu)
             st.download_button(
@@ -516,6 +548,8 @@ with tab2:
                 data=pdfdata,
                 file_name="huoltohistoria.pdf",
                 mime="application/pdf"
+            )
+
             )
 
 
@@ -758,6 +792,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
