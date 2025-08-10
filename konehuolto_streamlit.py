@@ -573,73 +573,59 @@ with tab3:
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
-
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
     else:
-        # Hae viimeisin tallennus Käyttötunnit-sheetistä
-        try:
-            ws_tunnit = get_gsheet_connection("Käyttötunnit")
-            tallennetut_tunnit = ws_tunnit.get_all_records()
-        except Exception:
-            tallennetut_tunnit = []
-
         koneet_nimet = koneet_df["Kone"].tolist()
         lista = []
-
+        
         for kone in koneet_nimet:
             ryhma = koneet_df.loc[koneet_df["Kone"] == kone, "Ryhmä"].values[0] if "Ryhmä" in koneet_df.columns else ""
 
-            # Viimeisin huolto huolto_df:stä
+            # Haetaan viimeisin huolto huolto_df:stä
             huollot_koneelle = huolto_df[huolto_df["Kone"] == kone].copy()
             huollot_koneelle["Pvm_dt"] = pd.to_datetime(huollot_koneelle["Päivämäärä"], dayfirst=True, errors="coerce")
             huollot_koneelle = huollot_koneelle.sort_values("Pvm_dt", ascending=False)
-
             if not huollot_koneelle.empty:
                 viimeisin_huolto = huollot_koneelle.iloc[0]
+                viimeiset_tunnit = int(float(str(viimeisin_huolto.get("Tunnit", 0)).replace(",", ".") or 0))
                 viimeisin_pvm = viimeisin_huolto.get("Päivämäärä", "")
-                viimeiset_tunnit = float(str(viimeisin_huolto.get("Tunnit", 0)).replace(",", ".") or 0)
             else:
-                viimeisin_pvm = "-"
                 viimeiset_tunnit = 0
-
-            # Viimeisin tallennettu Käyttötunnit-sheetistä (jos löytyy)
-            tallennettu_rivi = next((r for r in tallennetut_tunnit if r["Kone"] == kone), None)
-            if tallennettu_rivi:
-                syote_uudet = float(str(tallennettu_rivi.get("Uudet tunnit", viimeiset_tunnit)).replace(",", ".") or 0)
-            else:
-                syote_uudet = viimeiset_tunnit
+                viimeisin_pvm = "-"
 
             lista.append({
                 "Kone": kone,
                 "Ryhmä": ryhma,
                 "Viimeisin huolto (pvm)": viimeisin_pvm,
                 "Viimeisin huolto (tunnit)": viimeiset_tunnit,
-                "Syötä uudet tunnit": syote_uudet
             })
 
         df_tunnit = pd.DataFrame(lista)
-        # Erotus
-        df_tunnit["Erotus"] = df_tunnit["Syötä uudet tunnit"] - df_tunnit["Viimeisin huolto (tunnit)"]
 
-        # Input-kentät
-        for i, row in df_tunnit.iterrows():
-            df_tunnit.at[i, "Syötä uudet tunnit"] = st.number_input(
+        # Syötä uudet tunnit (oletuksena viimeisimmän huollon tunnit)
+        df_tunnit["Syötä uudet tunnit"] = [
+            st.number_input(
                 f"Uudet tunnit ({row['Kone']} / {row['Ryhmä']})",
-                min_value=0.0,
-                value=row["Syötä uudet tunnit"],
-                step=1.0,
+                min_value=0,
+                value=row["Viimeisin huolto (tunnit)"],
+                step=1,
                 key=f"tab4_tunnit_{i}"
-            )
+            ) for i, row in df_tunnit.iterrows()
+        ]
+
         df_tunnit["Erotus"] = df_tunnit["Syötä uudet tunnit"] - df_tunnit["Viimeisin huolto (tunnit)"]
 
-        st.dataframe(df_tunnit, hide_index=True, use_container_width=True)
+        st.dataframe(
+            df_tunnit[["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]],
+            hide_index=True
+        )
 
         # PDF-lataus
         from io import BytesIO
         from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
         from reportlab.lib.pagesizes import landscape, A4
-        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib import colors
         from reportlab.lib.units import inch, mm
         from datetime import datetime
@@ -647,18 +633,30 @@ with tab4:
         def create_tab4_pdf(df):
             buffer = BytesIO()
             otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
+            styles = getSampleStyleSheet()
+            kone_bold_style = ParagraphStyle(name="kone_bold", parent=styles["Normal"], fontName="Helvetica-Bold")
+
             paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
             otsikko = Paragraph("Kaikkien koneiden käyttötunnit ja erotus", otsikkotyyli)
 
-            columns = ["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Uudet tunnit", "Erotus"]
-            data = [columns] + [[
-                str(row["Kone"]),
-                str(row["Ryhmä"]),
-                str(row["Viimeisin huolto (pvm)"]),
-                str(row["Viimeisin huolto (tunnit)"]),
-                str(row["Syötä uudet tunnit"]),
-                str(row["Erotus"])
-            ] for _, row in df.iterrows()]
+            # Taulukkodata
+            columns = ["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]
+            data = [columns]
+            for _, row in df.iterrows():
+                rivi = []
+                for i, cell in enumerate([
+                    str(row["Kone"]),
+                    str(row["Ryhmä"]),
+                    str(row["Viimeisin huolto (pvm)"]),
+                    str(row["Viimeisin huolto (tunnit)"]),
+                    str(row["Syötä uudet tunnit"]),
+                    str(row["Erotus"])
+                ]):
+                    if i == 0:  # Kone boldattuna
+                        rivi.append(Paragraph(cell, kone_bold_style))
+                    else:
+                        rivi.append(cell)
+                data.append(rivi)
 
             sarakeleveys = [150, 120, 130, 130, 100, 55]
             table = Table(data, repeatRows=1, colWidths=sarakeleveys)
@@ -703,6 +701,7 @@ with tab4:
             return buffer
 
         pdf_buffer = create_tab4_pdf(df_tunnit)
+
         st.download_button(
             label="Lataa PDF-tiedosto",
             data=pdf_buffer,
@@ -710,37 +709,44 @@ with tab4:
             mime="application/pdf"
         )
 
-        # Tallennus → historia pois
+        # Tallennus
         if st.button("Tallenna kaikkien koneiden tunnit", key="tab4_tallenna_kaikki"):
             try:
                 ws = get_gsheet_connection("Käyttötunnit")
                 nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
-                values = ws.get_all_records()
 
-                # Poista vanhat rivit samoille koneille
-                kone_nimet = df_tunnit["Kone"].tolist()
-                uudet_values = [r for r in values if r["Kone"] not in kone_nimet]
+                # Jos sheet tyhjä → lisää otsikkorivi
+                values = ws.get_all_values()
+                if not values:
+                    ws.append_row(["Aika", "Kone", "Ryhmä", "Viimeisin huolto (tunnit)", "Uudet tunnit", "Erotus"])
 
-                # Lisää päivitetyt rivit
+                # Poistetaan vanhat rivit koneille, joita päivitetään
+                existing_values = ws.get_all_records()
+                koneet_päivitetään = df_tunnit["Kone"].tolist()
+                new_values = [v for v in existing_values if v["Kone"] not in koneet_päivitetään]
+                
+                # Lisätään uudet rivit
                 for _, row in df_tunnit.iterrows():
-                    uudet_values.append({
+                    new_values.append({
                         "Aika": nyt,
                         "Kone": row["Kone"],
                         "Ryhmä": row["Ryhmä"],
-                        "Edellinen huolto": row["Viimeisin huolto (tunnit)"],
+                        "Viimeisin huolto (tunnit)": row["Viimeisin huolto (tunnit)"],
                         "Uudet tunnit": row["Syötä uudet tunnit"],
                         "Erotus": row["Erotus"]
                     })
 
-                # Tyhjennä ja kirjoita uudestaan
+                # Tyhjennetään sheet ja kirjoitetaan uudestaan
                 ws.clear()
-                ws.append_row(["Aika", "Kone", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"])
-                for r in uudet_values:
-                    ws.append_row(list(r.values()))
+                ws.append_row(["Aika", "Kone", "Ryhmä", "Viimeisin huolto (tunnit)", "Uudet tunnit", "Erotus"])
+                for row in new_values:
+                    ws.append_row(list(row.values()))
 
-                st.success("Kaikkien koneiden tunnit tallennettu!")
+                st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
+
 
 
 
