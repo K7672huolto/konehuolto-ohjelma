@@ -573,17 +573,35 @@ with tab3:
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
+
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
     else:
+        # Haetaan viimeisin tallennus "Käyttötunnit"-välilehdeltä
+        try:
+            ws_kayttotunnit = get_gsheet_connection("Käyttötunnit")
+            kayttotunnit_data = ws_kayttotunnit.get_all_records()
+            viimeisin_tallennus = {}
+            for rivi in kayttotunnit_data:
+                kone = rivi.get("Kone", "")
+                uudet_tunnit = rivi.get("Uudet tunnit", "")
+                if kone and uudet_tunnit != "":
+                    viimeisin_tallennus[kone] = uudet_tunnit
+        except Exception as e:
+            st.error(f"Käyttötuntien lukeminen epäonnistui: {e}")
+            viimeisin_tallennus = {}
+
         koneet_nimet = koneet_df["Kone"].tolist()
         lista = []
-        for i, kone in enumerate(koneet_nimet):
-            ryhma = koneet_df[koneet_df["Kone"] == kone]["Ryhmä"].values[0] if "Ryhmä" in koneet_df.columns else ""
-            kone_id = koneet_df[koneet_df["Kone"] == kone]["ID"].values[0] if "ID" in koneet_df.columns else ""
+        for kone in koneet_nimet:
+            ryhma = koneet_df.loc[koneet_df["Kone"] == kone, "Ryhmä"].values[0] if "Ryhmä" in koneet_df.columns else ""
+            kone_id = koneet_df.loc[koneet_df["Kone"] == kone, "ID"].values[0] if "ID" in koneet_df.columns else ""
+
+            # Haetaan viimeisin huolto
             huollot_koneelle = huolto_df[huolto_df["Kone"] == kone].copy()
             huollot_koneelle["Pvm_dt"] = pd.to_datetime(huollot_koneelle["Päivämäärä"], dayfirst=True, errors="coerce")
             huollot_koneelle = huollot_koneelle.sort_values("Pvm_dt", ascending=False)
+
             if not huollot_koneelle.empty:
                 viimeisin_huolto = huollot_koneelle.iloc[0]
                 viimeiset_tunnit = float(str(viimeisin_huolto.get("Tunnit", 0)).replace(",", ".") or 0)
@@ -591,12 +609,20 @@ with tab4:
             else:
                 viimeiset_tunnit = 0
                 viimeisin_pvm = "-"
+
+            # Jos käyttötuntien sheetissä on uudempi tieto, käytetään sitä
+            if kone in viimeisin_tallennus:
+                try:
+                    viimeiset_tunnit = float(str(viimeisin_tallennus[kone]).replace(",", ".") or viimeiset_tunnit)
+                except ValueError:
+                    pass
+
             lista.append({
                 "Kone": kone,
                 "Ryhmä": ryhma,
                 "ID": kone_id,
                 "Viimeisin huolto (pvm)": viimeisin_pvm,
-                "Viimeisin huolto (tunnit)": viimeiset_tunnit,
+                "Viimeisin huolto (tunnit)": viimeiset_tunnit
             })
 
         df_tunnit = pd.DataFrame(lista)
@@ -616,7 +642,7 @@ with tab4:
             hide_index=True
         )
 
-        # --- PDF-lataus, sama tyyli kuin tab2:ssa (reportlab) ---
+        # --- PDF-lataus ---
         from io import BytesIO
         from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
         from reportlab.lib.pagesizes import landscape, A4
@@ -631,7 +657,6 @@ with tab4:
             paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
             otsikko = Paragraph("Kaikkien koneiden käyttötunnit ja erotus", otsikkotyyli)
 
-            # Taulukkodata
             columns = ["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]
             data = [columns] + [[
                 str(row["Kone"]),
@@ -644,7 +669,7 @@ with tab4:
 
             sarakeleveys = [150, 120, 130, 130, 100, 55]
             table = Table(data, repeatRows=1, colWidths=sarakeleveys)
-            table_styles = [
+            table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -653,8 +678,7 @@ with tab4:
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ]
-            table.setStyle(TableStyle(table_styles))
+            ]))
 
             def pdf_footer(canvas, doc):
                 canvas.saveState()
@@ -685,34 +709,41 @@ with tab4:
             return buffer
 
         pdf_buffer = create_tab4_pdf(df_tunnit)
-
         st.download_button(
             label="Lataa PDF-tiedosto",
             data=pdf_buffer,
             file_name="kaikkien_koneiden_tunnit.pdf",
             mime="application/pdf"
         )
-        # --- /PDF-lataus ---
 
+        # --- Tallennus ---
         if st.button("Tallenna kaikkien koneiden tunnit", key="tab4_tallenna_kaikki"):
             try:
                 ws = get_gsheet_connection("Käyttötunnit")
                 nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+
                 values = ws.get_all_values()
-                if not values or not any("Aika" in s for s in values[0]):
-                    ws.append_row(["Aika", "Kone", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"])
-                for idx, row in df_tunnit.iterrows():
+                expected_header = ["Aika", "Kone", "ID", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"]
+                if not values or values[0] != expected_header:
+                    ws.clear()
+                    ws.append_row(expected_header)
+
+                for _, row in df_tunnit.iterrows():
                     ws.append_row([
                         nyt,
                         row["Kone"],
+                        row["ID"],
                         row["Ryhmä"],
                         row["Viimeisin huolto (tunnit)"],
                         row["Syötä uudet tunnit"],
                         row["Erotus"]
                     ])
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
+                st.rerun()
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
+
 
 
 
