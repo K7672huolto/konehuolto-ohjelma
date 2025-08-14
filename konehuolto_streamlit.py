@@ -13,6 +13,24 @@ from reportlab.lib.units import inch, mm
 import base64
 import uuid
 
+# Sivun asetukset
+st.set_page_config(
+    page_title="Konehuolto-ohjelma",
+    layout="wide"
+)
+
+# Piilota Streamlitin valikot, footer ja header
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}     /* Yläkulman menu pois */
+    footer {visibility: hidden;}       /* Alapalkki pois */
+    header {visibility: hidden;}       /* Streamlit header pois */
+    .stDeployButton {display: none;}   /* Piilota deploy-painike */
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+
 # --------- LOGIN ---------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -792,6 +810,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
