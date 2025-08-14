@@ -13,15 +13,13 @@ from reportlab.lib.units import inch, mm
 import base64
 import uuid
 
-# -----------------------
-# SIVUN ASETUKSET
-# -----------------------
+# ---- SIVUASETUKSET ----
 st.set_page_config(
     page_title="Konehuolto-ohjelma",
     layout="wide"
 )
 
-# Piilota Streamlitin valikot ja header/footer
+# Piilota Streamlitin oletusvalikot
 hide_streamlit_style = """
     <style>
     #MainMenu {visibility: hidden;}
@@ -32,21 +30,20 @@ hide_streamlit_style = """
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-# -----------------------
-# LOGIN
-# -----------------------
-def login_ui():
+# ---- LOGIN ----
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "login_failed" not in st.session_state:
+    st.session_state.login_failed = False
+
+if not st.session_state.logged_in:
+    # Keskitetty ja pienempi kirjautumisikkuna
     login_style = """
         <style>
-        .full-screen-center {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
         .login-container {
-            max-width: 350px;
-            width: 100%;
+            max-width: 320px;
+            margin: auto;
+            margin-top: 20vh;
             padding: 2rem;
             border: 1px solid #ccc;
             border-radius: 10px;
@@ -57,58 +54,22 @@ def login_ui():
         </style>
     """
     st.markdown(login_style, unsafe_allow_html=True)
-
-    st.markdown('<div class="full-screen-center"><div class="login-container">', unsafe_allow_html=True)
-    st.subheader("🔑 Kirjaudu sisään")
-    username = st.text_input("Käyttäjätunnus")
-    password = st.text_input("Salasana", type="password")
-    login_btn = st.button("Kirjaudu")
-    st.markdown('</div></div>', unsafe_allow_html=True)
-
-    if login_btn:
-        if username == "mattipa" and password == "jdtoro#":  # ← Vaihda omiin tunnuksiin
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    st.subheader("🔐 Kirjaudu sisään")
+    username = st.text_input("Käyttäjätunnus", key="login_user")
+    password = st.text_input("Salasana", type="password", key="login_pw")
+    if st.button("Kirjaudu", key="login_btn"):
+        if username == "mattipa" and password == "jdtoro#":  # ← vaihda omiin tietoihin
             st.session_state.logged_in = True
-            st.session_state.username = username
+            st.session_state.login_failed = False
             st.rerun()
         else:
-            st.error("Väärä käyttäjätunnus tai salasana.")
-
-# Session-state alustus
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-# Jos ei kirjautunut, näytetään login ja stopataan ohjelma
-if not st.session_state.logged_in:
-    login_ui()
+            st.session_state.login_failed = True
+            st.error("❌ Väärä käyttäjätunnus tai salasana.")
+    st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
-# Logout-nappi ja käyttäjän nimi oikeaan yläkulmaan
-logout_style = """
-    <style>
-    .top-right {
-        position: fixed;
-        top: 15px;
-        right: 25px;
-        background-color: red;
-        color: white;
-        padding: 5px 10px;
-        border-radius: 5px;
-        z-index: 9999;
-    }
-    </style>
-"""
-st.markdown(logout_style, unsafe_allow_html=True)
-col1, col2 = st.columns([8,1])
-with col2:
-    if st.button("🚪 Kirjaudu ulos", key="logout_btn"):
-        st.session_state.logged_in = False
-        st.session_state.pop("username", None)
-        st.rerun()
-st.write(f"Tervetuloa, **{st.session_state.get('username','')}**!")
-
-# -----------------------
-# BANNERI
-# -----------------------
+# ---- BANNERI JA TAUSTAKUVA ----
 def taustakuva_local(filename):
     try:
         with open(filename, "rb") as image_file:
@@ -129,25 +90,21 @@ st.markdown(
         background-image: url('{kuva_base64}');
         background-size: cover;
         background-position: center;
-        padding: 85px 0;
+        padding: 85px 0 85px 0;
         margin-bottom: 0.2em;
         text-align: center;
         width: 100vw;
         position: relative;
         left: 50%; right: 50%; margin-left: -50vw; margin-right: -50vw;
     ">
-        <h2 style="color:#fff; text-shadow:2px 2px 6px #333;">
-            Konehuolto-ohjelma (selainversio)
-        </h2>
+        <h2 style="color:#fff; text-shadow:2px 2px 6px #333;">Konehuolto-ohjelma (selainversio)</h2>
     </div>
     """,
     unsafe_allow_html=True
 )
 st.markdown("---")
 
-# -----------------------
-# MÄÄRITYKSET & YHTEYDET
-# -----------------------
+# ---- MÄÄRITYKSET ----
 HUOLTOKOHTEET = {
     "Moottoriöljy": "MÖ",
     "Hydrauliöljy": "HÖ",
@@ -163,6 +120,7 @@ HUOLTOKOHTEET = {
 }
 LYHENTEET = list(HUOLTOKOHTEET.values())
 
+# ---- GOOGLE SHEETS YHTEYDET ----
 def get_gsheet_connection(tabname):
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -204,10 +162,11 @@ def tallenna_koneet(df):
 def tallenna_huollot(df):
     ws = get_gsheet_connection("Huollot")
     cleaned = df.fillna("").astype(str)
-    ws.clear()
     if not cleaned.empty:
+        ws.clear()
         ws.update([cleaned.columns.values.tolist()] + cleaned.values.tolist())
     else:
+        ws.clear()
         ws.update([["HuoltoID", "Kone", "ID", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET])
 
 def tallenna_kayttotunnit(kone, kone_id, ryhma, ed_tunnit, uusi_tunnit, erotus):
@@ -225,16 +184,19 @@ def ryhmat_ja_koneet(df):
         d.setdefault(r["Ryhmä"], []).append({"Kone": r["Kone"], "ID": r["ID"]})
     return d
 
+# ---- LADATAAN DATA ----
 huolto_df = lue_huollot()
 koneet_df = lue_koneet()
 koneet_data = ryhmat_ja_koneet(koneet_df) if not koneet_df.empty else {}
 
+# ---- VÄLILEHDET ----
 tab1, tab2, tab3, tab4 = st.tabs([
     "➕ Lisää huolto", 
     "📋 Huoltohistoria", 
     "🛠 Koneet ja ryhmät",
     "📊 Käyttötunnit"
 ])
+
 
 
 # ----------- TAB 1: LISÄÄ HUOLTO -----------
@@ -869,6 +831,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
