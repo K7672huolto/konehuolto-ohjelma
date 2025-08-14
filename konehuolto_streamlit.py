@@ -13,25 +13,173 @@ from reportlab.lib.units import inch, mm
 import base64
 import uuid
 
-# --------- LOGIN ---------
+# ---------- Sivun asetukset ----------
+st.set_page_config(page_title="Konehuolto-ohjelma", layout="wide")
+
+# Piilota Streamlitin valikot ja footer
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display: none;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+# ---------- Taustakuvan lataus ----------
+def get_base64_of_image(image_file):
+    with open(image_file, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+background_image = "tausta.png"  # Taustakuva tiedosto
+background_base64 = get_base64_of_image(background_image)
+
+# CSS: kirjautumislaatikko ja taustakuva
+page_css = f"""
+<style>
+[data-testid="stAppViewContainer"] {{
+    background-image: url("data:image/png;base64,{background_base64}");
+    background-size: cover;
+    background-position: center;
+}}
+.login-container {{
+    max-width: 350px;
+    margin: auto;
+    margin-top: 10%;
+    padding: 30px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.85);
+    box-shadow: 0px 4px 8px rgba(0,0,0,0.2);
+}}
+.login-title {{
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 20px;
+}}
+</style>
+"""
+st.markdown(page_css, unsafe_allow_html=True)
+
+# ---------- Session tilat kirjautumiselle ----------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "login_failed" not in st.session_state:
     st.session_state.login_failed = False
 
+# ---------- Kirjautumisnäkymä ----------
 if not st.session_state.logged_in:
-    st.title("Kirjaudu sisään")
-    username = st.text_input("Käyttäjätunnus", key="login_user")
-    password = st.text_input("Salasana", type="password", key="login_pw")
-    if st.button("Kirjaudu", key="login_btn"):
-        if username == "mattipa" and password == "jdtoro#":
-            st.session_state.logged_in = True
-            st.session_state.login_failed = False
-            st.rerun()
-        else:
-            st.session_state.login_failed = True
-            st.error("Väärä käyttäjätunnus tai salasana.")
+    with st.container():
+        st.markdown('<div class="login-container">', unsafe_allow_html=True)
+        st.markdown('<div class="login-title">🔒 Kirjaudu sisään</div>', unsafe_allow_html=True)
+        username = st.text_input("Käyttäjätunnus")
+        password = st.text_input("Salasana", type="password")
+
+        if st.button("Kirjaudu"):
+            if username == "mattipa" and password == "jdtoro#":
+                st.session_state.logged_in = True
+                st.session_state.login_failed = False
+                st.rerun()
+            else:
+                st.session_state.login_failed = True
+                st.error("❌ Väärä käyttäjätunnus tai salasana.")
+        st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
+
+# ---------- Kirjaudu ulos -nappi ----------
+col1, col2, col3 = st.columns([8,1,1])
+with col3:
+    if st.button("🚪 Kirjaudu ulos"):
+        st.session_state.logged_in = False
+        st.rerun()
+
+# ---------- Huoltokohteet ----------
+HUOLTOKOHTEET = {
+    "Moottoriöljy": "MÖ",
+    "Hydrauliöljy": "HÖ",
+    "Akseliöljy": "AÖ",
+    "Ilmansuodatin": "IS",
+    "Moottoriöljyn suodatin": "MS",
+    "Hydrauli suodatin": "HS",
+    "Rasvaus": "R",
+    "Polttoaine suodatin": "PS",
+    "Tulpat": "T",
+    "Vaihdelaatikko öljy": "VÖ",
+    "Peräöljy": "PÖ"
+}
+LYHENTEET = list(HUOLTOKOHTEET.values())
+
+# ---------- Google Sheets yhteys ----------
+def get_gsheet_connection(tabname):
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    credentials_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDENTIALS"])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+    client = gspread.authorize(creds)
+    sheet = client.open(st.secrets["SHEET_NIMI"])
+    return sheet.worksheet(tabname)
+
+def lue_koneet():
+    ws = get_gsheet_connection("Koneet")
+    data = ws.get_all_records()
+    df = pd.DataFrame(data)
+    for kentta in ["Kone", "ID", "Ryhmä"]:
+        if kentta not in df.columns:
+            df[kentta] = ""
+    return df
+
+def lue_huollot():
+    ws = get_gsheet_connection("Huollot")
+    data = ws.get_all_records()
+    df = pd.DataFrame(data)
+    pakolliset = ["HuoltoID", "Kone", "ID", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET
+    for kentta in pakolliset:
+        if kentta not in df.columns:
+            df[kentta] = ""
+    return df
+
+def tallenna_koneet(df):
+    ws = get_gsheet_connection("Koneet")
+    ws.clear()
+    if not df.empty:
+        ws.update([df.columns.values.tolist()] + df.values.tolist())
+
+def tallenna_huollot(df):
+    ws = get_gsheet_connection("Huollot")
+    cleaned = df.fillna("").astype(str)
+    if not cleaned.empty:
+        ws.clear()
+        ws.update([cleaned.columns.values.tolist()] + cleaned.values.tolist())
+    elif cleaned.empty:
+        ws.clear()
+        ws.update([["HuoltoID", "Kone", "ID", "Ryhmä", "Tunnit", "Päivämäärä", "Vapaa teksti"] + LYHENTEET])
+
+def tallenna_kayttotunnit(kone, kone_id, ryhma, ed_tunnit, uusi_tunnit, erotus):
+    ws = get_gsheet_connection("Käyttötunnit")
+    nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+    uusi_rivi = [[nyt, kone, kone_id, ryhma, ed_tunnit, uusi_tunnit, erotus]]
+    values = ws.get_all_values()
+    if not values or not any("Aika" in s for s in values[0]):
+        ws.append_row(["Aika", "Kone", "ID", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"])
+    ws.append_row(uusi_rivi[0])
+
+def ryhmat_ja_koneet(df):
+    d = {}
+    for _, r in df.iterrows():
+        d.setdefault(r["Ryhmä"], []).append({"Kone": r["Kone"], "ID": r["ID"]})
+    return d
+
+# ---------- Lataa data ----------
+huolto_df = lue_huollot()
+koneet_df = lue_koneet()
+koneet_data = ryhmat_ja_koneet(koneet_df) if not koneet_df.empty else {}
 
 # --------- TAUSTAKUVA (banneri) ----------
 def taustakuva_local(filename):
@@ -792,6 +940,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
