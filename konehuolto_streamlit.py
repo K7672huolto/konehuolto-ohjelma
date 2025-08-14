@@ -13,6 +13,89 @@ from reportlab.lib.units import inch, mm
 import base64
 import uuid
 
+import streamlit as st
+
+# --- Kirjautumisfunktio ---
+def login_ui():
+    login_style = """
+        <style>
+        .full-screen-center {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .login-container {
+            max-width: 350px;
+            width: 100%;
+            padding: 2rem;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background-color: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        </style>
+    """
+    st.markdown(login_style, unsafe_allow_html=True)
+
+    st.markdown('<div class="full-screen-center"><div class="login-container">', unsafe_allow_html=True)
+
+    st.subheader("🔑 Kirjaudu sisään")
+    username = st.text_input("Käyttäjätunnus")
+    password = st.text_input("Salasana", type="password")
+    login_btn = st.button("Kirjaudu")
+
+    st.markdown('</div></div>', unsafe_allow_html=True)
+
+    if login_btn:
+        if username == "oma_kayttaja" and password == "oma_salasana":  # ← Vaihda omiin tunnuksiisi
+            st.session_state["logged_in"] = True
+            st.session_state["username"] = username
+            st.rerun()
+        else:
+            st.error("Virheellinen käyttäjätunnus tai salasana.")
+
+# --- Pääohjelman käynnistys ---
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+if not st.session_state["logged_in"]:
+    login_ui()
+    st.stop()
+
+# --- Kirjaudu ulos -painike yläpalkissa ---
+logout_style = """
+    <style>
+    .logout-button {
+        position: absolute;
+        top: 10px;
+        right: 20px;
+        z-index: 9999;
+    }
+    </style>
+"""
+st.markdown(logout_style, unsafe_allow_html=True)
+
+logout_btn_html = """
+    <div class="logout-button">
+        <form action="#" method="post">
+            <input type="submit" value="🚪 Kirjaudu ulos" style="background-color:red; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">
+        </form>
+    </div>
+"""
+if st.markdown(logout_btn_html, unsafe_allow_html=True):
+    pass  # HTML-lomakkeen klikki ei toimi suoraan Streamlitissä ilman sessionin päivitystä
+
+# Streamlitin oma nappi HTML:n tilalle
+if st.button("🚪 Kirjaudu ulos", key="logout_btn", help="Kirjaudu ulos"):
+    st.session_state["logged_in"] = False
+    st.session_state.pop("username", None)
+    st.rerun()
+
+# --- Pääsisältö ---
+st.write(f"Tervetuloa, **{st.session_state.get('username', '')}**!")
+
 # Sivun asetukset
 st.set_page_config(
     page_title="Konehuolto-ohjelma",
@@ -810,6 +893,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
