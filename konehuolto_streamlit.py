@@ -13,90 +13,63 @@ from reportlab.lib.units import inch, mm
 import base64
 import uuid
 
-# ---------- Sivun asetukset ----------
-st.set_page_config(page_title="Konehuolto-ohjelma", layout="wide")
-
-# Piilota Streamlitin valikot ja footer
-hide_streamlit_style = """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stDeployButton {display: none;}
-    </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-# ---------- Taustakuvan lataus ----------
-def get_base64_of_image(image_file):
-    with open(image_file, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
-background_image = "tausta.png"  # Taustakuva tiedosto
-background_base64 = get_base64_of_image(background_image)
-
-# CSS: kirjautumislaatikko ja taustakuva
-page_css = f"""
-<style>
-[data-testid="stAppViewContainer"] {{
-    background-image: url("data:image/png;base64,{background_base64}");
-    background-size: cover;
-    background-position: center;
-}}
-.login-container {{
-    max-width: 350px;
-    margin: auto;
-    margin-top: 10%;
-    padding: 30px;
-    border: 1px solid #ddd;
-    border-radius: 10px;
-    background-color: rgba(255, 255, 255, 0.85);
-    box-shadow: 0px 4px 8px rgba(0,0,0,0.2);
-}}
-.login-title {{
-    text-align: center;
-    font-size: 22px;
-    font-weight: bold;
-    margin-bottom: 20px;
-}}
-</style>
-"""
-st.markdown(page_css, unsafe_allow_html=True)
-
-# ---------- Session tilat kirjautumiselle ----------
+# --------- LOGIN ---------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "login_failed" not in st.session_state:
     st.session_state.login_failed = False
 
-# ---------- Kirjautumisnäkymä ----------
 if not st.session_state.logged_in:
-    with st.container():
-        st.markdown('<div class="login-container">', unsafe_allow_html=True)
-        st.markdown('<div class="login-title">🔒 Kirjaudu sisään</div>', unsafe_allow_html=True)
-        username = st.text_input("Käyttäjätunnus")
-        password = st.text_input("Salasana", type="password")
-
-        if st.button("Kirjaudu"):
-            if username == "mattipa" and password == "jdtoro#":
-                st.session_state.logged_in = True
-                st.session_state.login_failed = False
-                st.rerun()
-            else:
-                st.session_state.login_failed = True
-                st.error("❌ Väärä käyttäjätunnus tai salasana.")
-        st.markdown('</div>', unsafe_allow_html=True)
+    st.title("Kirjaudu sisään")
+    username = st.text_input("Käyttäjätunnus", key="login_user")
+    password = st.text_input("Salasana", type="password", key="login_pw")
+    if st.button("Kirjaudu", key="login_btn"):
+        if username == "mattipa" and password == "jdtoro#":
+            st.session_state.logged_in = True
+            st.session_state.login_failed = False
+            st.rerun()
+        else:
+            st.session_state.login_failed = True
+            st.error("Väärä käyttäjätunnus tai salasana.")
     st.stop()
 
-# ---------- Kirjaudu ulos -nappi ----------
-col1, col2, col3 = st.columns([8,1,1])
-with col3:
-    if st.button("🚪 Kirjaudu ulos"):
-        st.session_state.logged_in = False
-        st.rerun()
+# --------- TAUSTAKUVA (banneri) ----------
+def taustakuva_local(filename):
+    try:
+        with open(filename, "rb") as image_file:
+            encoded = base64.b64encode(image_file.read()).decode()
+        return f"data:image/jpg;base64,{encoded}"
+    except:
+        return ""
 
-# ---------- Huoltokohteet ----------
+kuva_base64 = taustakuva_local("tausta.png")
+st.set_page_config(page_title="Konehuolto", layout="wide")
+st.markdown("""
+    <style>
+    .block-container { padding-top: 0rem !important; margin-top: 0rem !important; }
+    </style>
+""", unsafe_allow_html=True)
+st.markdown(
+    f"""
+    <div style="
+        background-image: url('{kuva_base64}');
+        background-size: cover;
+        background-position: center;
+        padding: 85px 0 85px 0;
+        margin-bottom: 0.2em;
+        text-align: center;
+        width: 100vw;
+        position: relative;
+        left: 50%; right: 50%; margin-left: -50vw; margin-right: -50vw;
+    ">
+        <h2 style="color:#fff; text-shadow:2px 2px 6px #333;">Konehuolto-ohjelma (selainversio)</h2>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+st.markdown("---")
+
+# --------- MÄÄRITYKSET JA YHTEYDET ---------
 HUOLTOKOHTEET = {
     "Moottoriöljy": "MÖ",
     "Hydrauliöljy": "HÖ",
@@ -112,7 +85,6 @@ HUOLTOKOHTEET = {
 }
 LYHENTEET = list(HUOLTOKOHTEET.values())
 
-# ---------- Google Sheets yhteys ----------
 def get_gsheet_connection(tabname):
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -165,6 +137,7 @@ def tallenna_kayttotunnit(kone, kone_id, ryhma, ed_tunnit, uusi_tunnit, erotus):
     ws = get_gsheet_connection("Käyttötunnit")
     nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
     uusi_rivi = [[nyt, kone, kone_id, ryhma, ed_tunnit, uusi_tunnit, erotus]]
+    # Lisää otsikot jos sheet on tyhjä
     values = ws.get_all_values()
     if not values or not any("Aika" in s for s in values[0]):
         ws.append_row(["Aika", "Kone", "ID", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"])
@@ -176,15 +149,16 @@ def ryhmat_ja_koneet(df):
         d.setdefault(r["Ryhmä"], []).append({"Kone": r["Kone"], "ID": r["ID"]})
     return d
 
-# ---- VÄLILEHDET ----
+huolto_df = lue_huollot()
+koneet_df = lue_koneet()
+koneet_data = ryhmat_ja_koneet(koneet_df) if not koneet_df.empty else {}
+
 tab1, tab2, tab3, tab4 = st.tabs([
     "➕ Lisää huolto", 
     "📋 Huoltohistoria", 
     "🛠 Koneet ja ryhmät",
     "📊 Käyttötunnit"
 ])
-
-
 
 # ----------- TAB 1: LISÄÄ HUOLTO -----------
 # ----------- TAB 1: LISÄÄ HUOLTO -----------
@@ -818,13 +792,6 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
-
-
-
-
-
-
-
 
 
 
