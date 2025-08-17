@@ -607,133 +607,121 @@ with tab3:
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
-
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
     else:
         koneet_nimet = koneet_df["Kone"].tolist()
         lista = []
-
-        # Käydään koneet läpi
         for kone in koneet_nimet:
             ryhma = koneet_df.loc[koneet_df["Kone"] == kone, "Ryhmä"].values[0] if "Ryhmä" in koneet_df.columns else ""
 
-            # --- Hae viimeisin huolto huolto_df:stä ---
+            # Haetaan viimeisin huolto koneelle
             huollot_koneelle = huolto_df[huolto_df["Kone"] == kone].copy()
-            huollot_koneelle["Pvm_dt"] = pd.to_datetime(
-                huollot_koneelle["Päivämäärä"], dayfirst=True, errors="coerce"
-            )
+            huollot_koneelle["Pvm_dt"] = pd.to_datetime(huollot_koneelle["Päivämäärä"], dayfirst=True, errors="coerce")
             huollot_koneelle = huollot_koneelle.sort_values("Pvm_dt", ascending=False)
 
             if not huollot_koneelle.empty:
                 viimeisin_huolto = huollot_koneelle.iloc[0]
-                try:
-                    viimeisin_tunnit = int(float(str(viimeisin_huolto.get("Tunnit", 0)).replace(",", ".") or 0))
-                except:
-                    viimeisin_tunnit = 0
+                viimeiset_tunnit = int(float(str(viimeisin_huolto.get("Tunnit", 0)).replace(",", ".") or 0))
                 viimeisin_pvm = viimeisin_huolto.get("Päivämäärä", "")
             else:
-                viimeisin_tunnit = 0
+                viimeiset_tunnit = 0
                 viimeisin_pvm = "-"
 
             lista.append({
                 "Kone": kone,
                 "Ryhmä": ryhma,
                 "Viimeisin huolto (pvm)": viimeisin_pvm,
-                "Viimeisin huolto (tunnit)": viimeisin_tunnit,
+                "Viimeisin huolto (tunnit)": viimeiset_tunnit,
             })
 
-        # DataFrame esitystä varten
         df_tunnit = pd.DataFrame(lista)
 
-        # Syötä uudet tunnit (kokonaisluvut)
+        # Käyttäjän syötettävät uudet tunnit
         df_tunnit["Syötä uudet tunnit"] = [
             st.number_input(
                 f"Uudet tunnit ({row['Kone']} / {row['Ryhmä']})",
                 min_value=0,
-                value=int(row["Viimeisin huolto (tunnit)"]),
+                value=row["Viimeisin huolto (tunnit)"],
                 step=1,
                 key=f"tab4_tunnit_{i}"
-            )
-            for i, row in df_tunnit.iterrows()
+            ) for i, row in df_tunnit.iterrows()
         ]
 
         # Erotus
         df_tunnit["Erotus"] = df_tunnit["Syötä uudet tunnit"] - df_tunnit["Viimeisin huolto (tunnit)"]
 
-        # Näytä taulukko
-        st.dataframe(
-            df_tunnit[
-                ["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)",
-                 "Syötä uudet tunnit", "Erotus"]
-            ],
-            hide_index=True
-        )
+        # Näytetään dataframe HTML-muodossa: kone bold, erotus punaisena
+        def style_df(df):
+            styled = df.style.format(precision=0)
+            styled = styled.set_properties(subset=["Kone"], **{"font-weight": "bold"})
+            styled = styled.set_properties(subset=["Erotus"], **{"color": "red"})
+            return styled
+
+        st.write(df_tunnit[["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]].style.pipe(style_df))
 
         # --- PDF-lataus ---
+        from io import BytesIO
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.pagesizes import landscape, A4
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib import colors
+        from reportlab.lib.units import inch, mm
+        from datetime import datetime
+
         def create_tab4_pdf(df):
             buffer = BytesIO()
             otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
-            paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"),
-                                ParagraphStyle("date", fontSize=12, alignment=2))
+            kone_tyyli = ParagraphStyle(name="kone", fontName="Helvetica-Bold", fontSize=10)
+            erotus_tyyli = ParagraphStyle(name="erotus", fontName="Helvetica", fontSize=10, textColor=colors.red)
+            normi_tyyli = ParagraphStyle(name="normi", fontName="Helvetica", fontSize=10)
+
             otsikko = Paragraph("Kaikkien koneiden käyttötunnit ja erotus", otsikkotyyli)
+            paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
 
-            columns = ["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)",
-                       "Syötä uudet tunnit", "Erotus"]
-            data = [columns] + [
-                [
-                    str(row["Kone"]),
-                    str(row["Ryhmä"]),
-                    str(row["Viimeisin huolto (pvm)"]),
-                    str(row["Viimeisin huolto (tunnit)"]),
-                    str(row["Syötä uudet tunnit"]),
-                    str(row["Erotus"])
-                ] for _, row in df.iterrows()
-            ]
+            # Taulukkodata
+            columns = ["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]
+            data = [columns]
+            for _, row in df.iterrows():
+                rivi = [
+                    Paragraph(str(row["Kone"]), kone_tyyli),
+                    Paragraph(str(row["Ryhmä"]), normi_tyyli),
+                    Paragraph(str(row["Viimeisin huolto (pvm)"]), normi_tyyli),
+                    Paragraph(str(row["Viimeisin huolto (tunnit)"]), normi_tyyli),
+                    Paragraph(str(row["Syötä uudet tunnit"]), normi_tyyli),
+                    Paragraph(str(row["Erotus"]), erotus_tyyli),
+                ]
+                data.append(rivi)
 
-            sarakeleveys = [150, 120, 130, 130, 100, 55]
+            sarakeleveys = [130, 110, 120, 120, 110, 70]
             table = Table(data, repeatRows=1, colWidths=sarakeleveys)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ]))
 
-            def pdf_footer(canvas, doc):
-                canvas.saveState()
-                canvas.setFont('Helvetica', 8)
-                canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
-                canvas.restoreState()
-
-            doc = SimpleDocTemplate(
-                buffer, pagesize=landscape(A4),
-                rightMargin=0.5 * inch, leftMargin=0.5 * inch,
-                topMargin=0.7 * inch, bottomMargin=0.5 * inch
-            )
+            doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
+                                    rightMargin=0.5*inch, leftMargin=0.5*inch,
+                                    topMargin=0.7*inch, bottomMargin=0.5*inch)
             doc.build(
-                [Spacer(1, 4 * mm),
+                [Spacer(1, 4*mm),
                  Table([[otsikko, paivays]], colWidths=[340, 340], style=[
-                     ("ALIGN", (0, 0), (0, 0), "LEFT"),
-                     ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                     ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                     ("TOPPADDING", (0, 0), (-1, -1), 0),
+                     ("ALIGN", (0,0), (0,0), "LEFT"),
+                     ("ALIGN", (1,0), (1,0), "RIGHT"),
                  ]),
-                 Spacer(1, 4 * mm),
-                 table],
-                onFirstPage=pdf_footer,
-                onLaterPages=pdf_footer
+                 Spacer(1, 4*mm),
+                 table]
             )
             buffer.seek(0)
             return buffer
 
         pdf_buffer = create_tab4_pdf(df_tunnit)
-
         st.download_button(
             label="Lataa PDF-tiedosto",
             data=pdf_buffer,
@@ -741,34 +729,22 @@ with tab4:
             mime="application/pdf"
         )
 
-        # --- Tallennus Google Sheetiin (optimoitu append_rows) ---
+        # --- Tallennus Google Sheetiin (päälle kirjoittava) ---
         if st.button("Tallenna kaikkien koneiden tunnit", key="tab4_tallenna_kaikki"):
             try:
                 ws = get_gsheet_connection("Käyttötunnit")
                 nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
-                values = ws.get_all_values()
-                if not values or not any("Aika" in s for s in values[0]):
-                    ws.append_row(["Aika", "Kone", "Ryhmä", "Edellinen huolto",
-                                   "Uudet tunnit", "Erotus"])
 
-                # Luo kaikki rivit kerralla
-                uudet_rivit = []
-                for _, row in df_tunnit.iterrows():
-                    uudet_rivit.append([
-                        nyt,
-                        row["Kone"],
-                        row["Ryhmä"],
-                        row["Viimeisin huolto (tunnit)"],
-                        row["Syötä uudet tunnit"],
-                        row["Erotus"]
-                    ])
+                tallennus_df = df_tunnit.copy()
+                tallennus_df.insert(0, "Aika", nyt)
 
-                # Tallennetaan yhdellä API-kutsulla
-                ws.append_rows(uudet_rivit)
-
+                ws.clear()
+                ws.update([tallennus_df.columns.values.tolist()] + tallennus_df.values.tolist())
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
+
 
 
 
