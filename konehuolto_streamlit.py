@@ -722,7 +722,7 @@ with tab4:
                     Paragraph(f"<font color='red'>{row['Erotus']}</font>", ParagraphStyle("default"))
                 ])
 
-            table = Table(data, repeatRows=1, colWidths=[120, 100, 130, 120, 110, 70])
+            table = Table(data, repeatRows=1, colWidths=[140, 100, 130, 120, 110, 70])
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.teal),
                 ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
@@ -799,6 +799,7 @@ with tab4:
                 st.success("Tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
