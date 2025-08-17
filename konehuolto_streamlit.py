@@ -733,15 +733,24 @@ with tab4:
                 ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ]))
 
+            def pdf_footer(canvas, doc):
+                canvas.saveState()
+                canvas.setFont("Helvetica", 8)
+                text = f"Sivu {doc.page} – Tulostettu {datetime.today().strftime('%d.%m.%Y %H:%M')}"
+                canvas.drawCentredString(420, 20, text)
+                canvas.restoreState()
+
             doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                                     rightMargin=0.5*inch, leftMargin=0.5*inch,
-                                    topMargin=0.7*inch, bottomMargin=0.5*inch)
+                                    topMargin=0.7*inch, bottomMargin=0.7*inch)
             doc.build([Spacer(1,4*mm), 
                        Table([[otsikko, paivays]], colWidths=[340, 340], style=[
                            ("ALIGN",(0,0),(0,0),"LEFT"),
                            ("ALIGN",(1,0),(1,0),"RIGHT")
                        ]),
-                       Spacer(1,4*mm), table])
+                       Spacer(1,4*mm), table],
+                      onFirstPage=pdf_footer,
+                      onLaterPages=pdf_footer)
             buffer.seek(0)
             return buffer
 
@@ -790,6 +799,18 @@ with tab4:
                 st.success("Tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
