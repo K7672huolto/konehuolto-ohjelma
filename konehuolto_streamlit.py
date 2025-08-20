@@ -694,7 +694,7 @@ with tab4:
 
         st.write(style_df(df_tunnit[[
             "Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Syötä uudet tunnit","Erotus"
-        ]]))        
+        ]])        
         
         # 4) Syötekentät (kokonaisluvut)
         uudet = []
@@ -827,6 +827,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
