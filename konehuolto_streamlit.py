@@ -690,16 +690,7 @@ with tab4:
             })
         df_tunnit = pd.DataFrame(rows)
 
-        # 4) Näyttö tyylillä (Kone bold, Erotus punaisella, ei desimaaleja)
-        def style_df(df):
-            styled = df.style.format({
-                "Viimeisin huolto (tunnit)": "{:.0f}",
-                "Syötä uudet tunnit": "{:.0f}",
-                "Erotus": "{:.0f}"
-            })
-            styled = styled.set_properties(subset=["Kone"], **{"font-weight": "bold"})
-            styled = styled.set_properties(subset=["Erotus"], **{"color": "red"})
-            return styled
+        
 
         st.write(style_df(df_tunnit[[
             "Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Syötä uudet tunnit","Erotus"
@@ -719,7 +710,16 @@ with tab4:
         df_tunnit["Syötä uudet tunnit"] = [int(x) for x in uudet]
         df_tunnit["Erotus"] = df_tunnit["Syötä uudet tunnit"] - df_tunnit["Viimeisin huolto (tunnit)"]
 
-        
+        # 5) Näyttö tyylillä (Kone bold, Erotus punaisella, ei desimaaleja)
+        def style_df(df):
+            styled = df.style.format({
+                "Viimeisin huolto (tunnit)": "{:.0f}",
+                "Syötä uudet tunnit": "{:.0f}",
+                "Erotus": "{:.0f}"
+            })
+            styled = styled.set_properties(subset=["Kone"], **{"font-weight": "bold"})
+            styled = styled.set_properties(subset=["Erotus"], **{"color": "red"})
+            return styled        
 
         # 6) PDF-lataus (Kone bold, Erotus punainen)
         def create_tab4_pdf(df):
@@ -827,6 +827,7 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
