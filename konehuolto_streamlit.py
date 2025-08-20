@@ -599,6 +599,7 @@ with tab3:
 
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
+# ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
 
@@ -690,12 +691,6 @@ with tab4:
             })
         df_tunnit = pd.DataFrame(rows)
 
-        
-
-        st.write(style_df(df_tunnit[[
-            "Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Syötä uudet tunnit","Erotus"
-        ]])        
-        
         # 4) Syötekentät (kokonaisluvut)
         uudet = []
         for i, row in df_tunnit.iterrows():
@@ -719,7 +714,11 @@ with tab4:
             })
             styled = styled.set_properties(subset=["Kone"], **{"font-weight": "bold"})
             styled = styled.set_properties(subset=["Erotus"], **{"color": "red"})
-            return styled        
+            return styled
+
+        st.write(style_df(df_tunnit[[
+            "Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Syötä uudet tunnit","Erotus"
+        ]]))
 
         # 6) PDF-lataus (Kone bold, Erotus punainen)
         def create_tab4_pdf(df):
@@ -827,6 +826,8 @@ with tab4:
                 st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
             except Exception as e:
                 st.error(f"Tallennus epäonnistui: {e}")
+)
+
 
 
 
