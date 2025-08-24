@@ -599,27 +599,26 @@ with tab3:
 
 
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
+# ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
 
-    # --- CSS muotoilut ---
+    # --- CSS: muotoilut data_editorille ---
     st.markdown("""
         <style>
-        /* Bold kone (1. sarake) */
-        [data-testid="stDataFrameCell"][aria-colindex="1"] {
+        /* Boldaa koneen nimi (1. sarake) */
+        [data-testid="stDataEditor"] div[role="gridcell"][aria-colindex="1"] {
             font-weight: 700 !important;
         }
-
-        /* Viimeisin tunnit (4), Uudet tunnit (5), Erotus (6) vasemmalle */
-        [data-testid="stDataFrameCell"][aria-colindex="4"] div,
-        [data-testid="stDataFrameCell"][aria-colindex="5"] div,
-        [data-testid="stDataFrameCell"][aria-colindex="6"] div {
-            justify-content: flex-start !important;
+        /* Viimeisin tunnit (4), Syötä uudet (5), Erotus (6) vasemmalle */
+        [data-testid="stDataEditor"] div[role="gridcell"][aria-colindex="4"],
+        [data-testid="stDataEditor"] div[role="gridcell"][aria-colindex="5"],
+        [data-testid="stDataEditor"] div[role="gridcell"][aria-colindex="6"] {
             text-align: left !important;
+            justify-content: flex-start !important;
         }
-
-        /* Erotus (6) punaisella ja bold */
-        [data-testid="stDataFrameCell"][aria-colindex="6"] {
+        /* Erotus (6) punaisella ja boldattuna */
+        [data-testid="stDataEditor"] div[role="gridcell"][aria-colindex="6"] {
             color: red !important;
             font-weight: 700 !important;
         }
@@ -629,133 +628,228 @@ with tab4:
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
     else:
-        # --- Rakennetaan DataFrame ---
-        lista = []
+        # --- 1) Hae viimeisin huolto huollot-taulukosta ---
+        def viimeisin_huolto_tunnit_pvm(konenimi: str):
+            dfk = huolto_df[huolto_df["Kone"] == konenimi].copy()
+            if dfk.empty:
+                return 0, "-"
+            dfk["pvm_dt"] = pd.to_datetime(dfk["Päivämäärä"], dayfirst=True, errors="coerce")
+            dfk = dfk.sort_values("pvm_dt", ascending=True)
+            viimeisin = dfk.iloc[-1]
+            try:
+                tunnit = int(float(str(viimeisin.get("Tunnit", 0)).replace(",", ".") or 0))
+            except:
+                tunnit = 0
+            pvm = str(viimeisin.get("Päivämäärä", "-")) or "-"
+            return tunnit, pvm
+
+        # --- 2) Hae viimeksi tallennetut uudet tunnit Käyttötunnit-shetiltä ---
+        try:
+            ws_kaytto = get_gsheet_connection("Käyttötunnit")
+            kaytto_values = ws_kaytto.get_all_values()
+        except Exception:
+            kaytto_values = []
+
+        kaytto_header = kaytto_values[0] if kaytto_values else []
+        kaytto_rows = kaytto_values[1:] if len(kaytto_values) > 1 else []
+
+        viimeksi_tallennetut = {}
+        if kaytto_header:
+            try:
+                idx_kone = kaytto_header.index("Kone")
+                idx_uudet = kaytto_header.index("Uudet tunnit")
+            except ValueError:
+                idx_kone = idx_uudet = None
+            if idx_kone is not None and idx_uudet is not None:
+                for r in kaytto_rows:
+                    if len(r) > max(idx_kone, idx_uudet):
+                        kone_nimi = r[idx_kone]
+                        try:
+                            uudet = int(float(str(r[idx_uudet]).replace(",", ".") or 0))
+                            viimeksi_tallennetut[kone_nimi] = uudet
+                        except:
+                            pass
+
+        # --- 3) Perusdata ---
+        rivit = []
         for kone in koneet_df["Kone"].tolist():
             ryhma = koneet_df.loc[koneet_df["Kone"] == kone, "Ryhmä"].values[0] if "Ryhmä" in koneet_df.columns else ""
-
-            # Haetaan viimeisin huolto huolto_df:stä
-            huollot_koneelle = huolto_df[huolto_df["Kone"] == kone].copy()
-            huollot_koneelle["Pvm_dt"] = pd.to_datetime(
-                huollot_koneelle["Päivämäärä"], dayfirst=True, errors="coerce"
-            )
-            huollot_koneelle = huollot_koneelle.sort_values("Pvm_dt", ascending=False)
-
-            if not huollot_koneelle.empty:
-                viimeisin_huolto = huollot_koneelle.iloc[0]
-                viimeiset_tunnit = int(float(str(viimeisin_huolto.get("Tunnit", 0)).replace(",", ".") or 0))
-                viimeisin_pvm = viimeisin_huolto.get("Päivämäärä", "")
-            else:
-                viimeiset_tunnit = 0
-                viimeisin_pvm = "-"
-
-            lista.append({
+            v_tunnit, v_pvm = viimeisin_huolto_tunnit_pvm(kone)
+            oletus_uudet = viimeksi_tallennetut.get(kone, v_tunnit)
+            rivit.append({
                 "Kone": kone,
                 "Ryhmä": ryhma,
-                "Viimeisin huolto (pvm)": viimeisin_pvm,
-                "Viimeisin huolto (tunnit)": viimeiset_tunnit,
-                "Syötä uudet tunnit": viimeiset_tunnit,
-                "Erotus": 0
+                "Viimeisin huolto (pvm)": v_pvm,
+                "Viimeisin huolto (tunnit)": int(v_tunnit),
+                "Syötä uudet tunnit": int(oletus_uudet),
             })
+        df_perus = pd.DataFrame(rivit)
 
-        df_tunnit = pd.DataFrame(lista)
+        # --- 4) Session-state muokkauksille ---
+        if "tab4_edits" not in st.session_state:
+            st.session_state["tab4_edits"] = {r["Kone"]: int(r["Syötä uudet tunnit"]) for _, r in df_perus.iterrows()}
+        df_perus["Syötä uudet tunnit"] = (
+            df_perus["Kone"].map(st.session_state["tab4_edits"]).fillna(df_perus["Syötä uudet tunnit"]).astype(int)
+        )
+        df_perus["Erotus"] = (df_perus["Syötä uudet tunnit"].astype(int) - df_perus["Viimeisin huolto (tunnit)"].astype(int)).astype(int)
 
-        # --- Muokattava taulukko ---
-        muokattu = st.data_editor(
-            df_tunnit,
-            column_order=["Kone", "Ryhmä", "Viimeisin huolto (pvm)",
-                          "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"],
+        # --- 5) Yksi muokattava taulukko ---
+        edited_df = st.data_editor(
+            df_perus,
             hide_index=True,
+            num_rows="fixed",
             use_container_width=True,
-            num_rows="fixed"
+            column_config={
+                "Kone": st.column_config.TextColumn("Kone", disabled=True),
+                "Ryhmä": st.column_config.TextColumn("Ryhmä", disabled=True),
+                "Viimeisin huolto (pvm)": st.column_config.TextColumn("Viimeisin huolto (pvm)", disabled=True),
+                "Viimeisin huolto (tunnit)": st.column_config.NumberColumn("Viimeisin huolto (tunnit)", step=1, disabled=True, format="%d"),
+                "Syötä uudet tunnit": st.column_config.NumberColumn("Syötä uudet tunnit", step=1, min_value=0, format="%d"),
+                "Erotus": st.column_config.NumberColumn("Erotus", step=1, disabled=True, format="%d"),
+            },
+            column_order=["Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"],
+            key="tab4_editor"
         )
 
-        # Päivitetään erotus
-        muokattu["Erotus"] = muokattu["Syötä uudet tunnit"].astype(int) - muokattu["Viimeisin huolto (tunnit)"].astype(int)
+        # Päivitä session_state ja erotus
+        try:
+            st.session_state["tab4_edits"] = {r["Kone"]: int(r["Syötä uudet tunnit"]) for _, r in edited_df.iterrows()}
+        except Exception:
+            pass
+        edited_df["Erotus"] = (edited_df["Syötä uudet tunnit"].astype(int) - edited_df["Viimeisin huolto (tunnit)"].astype(int)).astype(int)
 
-        # --- PDF-lataus ---
-        def create_tab4_pdf(df):
-            buffer = BytesIO()
-            otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
-            paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"),
-                                ParagraphStyle("date", fontSize=12, alignment=2))
-            otsikko = Paragraph("Kaikkien koneiden käyttötunnit ja erotus", otsikkotyyli)
+        # --- 6) Tallennus ---
+        colL, colR = st.columns([1,1])
+        with colL:
+            if st.button("💾 Tallenna kaikki", key="tab4_save_all"):
+                try:
+                    ws = get_gsheet_connection("Käyttötunnit")
+                    values = ws.get_all_values()
+                    if not values:
+                        header = ["Aika", "Kone", "Ryhmä", "Viimeisin huolto (pvm)", "Viimeisin huolto (tunnit)", "Uudet tunnit", "Erotus"]
+                        ws.append_row(header)
+                        values = [header]
 
-            columns = ["Kone", "Ryhmä", "Viimeisin huolto (pvm)",
-                       "Viimeisin huolto (tunnit)", "Syötä uudet tunnit", "Erotus"]
+                    header = values[0]
+                    idx_map = {name: i for i, name in enumerate(header)}
+                    required = ["Aika","Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Uudet tunnit","Erotus"]
+                    changed = False
+                    for colname in required:
+                        if colname not in idx_map:
+                            header.append(colname); idx_map[colname] = len(header)-1; changed = True
+                    if changed:
+                        ws.update('A1', [header])
+                        values = ws.get_all_values()
+                        idx_map = {name: i for i, name in enumerate(header)}
 
-            data = [columns] + [
-                [
-                    Paragraph(f"<b>{row['Kone']}</b>", ParagraphStyle(name="bold", fontName="Helvetica-Bold", fontSize=9)),
-                    str(row["Ryhmä"]),
-                    str(row["Viimeisin huolto (pvm)"]),
-                    str(row["Viimeisin huolto (tunnit)"]),
-                    str(row["Syötä uudet tunnit"]),
-                    Paragraph(f"<font color='red'><b>{row['Erotus']}</b></font>", ParagraphStyle(name="pun", fontSize=9))
-                ]
-                for _, row in df.iterrows()
-            ]
+                    kone_col = idx_map["Kone"]
+                    row_index_by_kone = {}
+                    for i, r in enumerate(values[1:], start=2):
+                        if len(r) > kone_col and r[kone_col]:
+                            row_index_by_kone[r[kone_col]] = i
 
-            sarakeleveys = [150, 120, 130, 130, 100, 55]
-            table = Table(data, repeatRows=1, colWidths=sarakeleveys)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ]))
+                    nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+                    for _, r in edited_df.iterrows():
+                        out_row = [""] * len(header)
+                        data_map = {
+                            "Aika": nyt,
+                            "Kone": r["Kone"],
+                            "Ryhmä": r["Ryhmä"],
+                            "Viimeisin huolto (pvm)": r["Viimeisin huolto (pvm)"],
+                            "Viimeisin huolto (tunnit)": int(r["Viimeisin huolto (tunnit)"]),
+                            "Uudet tunnit": int(r["Syötä uudet tunnit"]),
+                            "Erotus": int(r["Syötä uudet tunnit"]) - int(r["Viimeisin huolto (tunnit)"]),
+                        }
+                        for k, v in data_map.items():
+                            out_row[idx_map[k]] = str(v)
 
-            def pdf_footer(canvas, doc):
-                canvas.saveState()
-                canvas.setFont('Helvetica', 8)
-                canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
-                canvas.restoreState()
+                        if r["Kone"] in row_index_by_kone:
+                            row_no = row_index_by_kone[r["Kone"]]
+                            cell_range = f"A{row_no}:{chr(ord('A')+len(header)-1)}{row_no}"
+                            ws.update(cell_range, [out_row])
+                        else:
+                            ws.append_row(out_row)
 
-            doc = SimpleDocTemplate(
-                buffer, pagesize=landscape(A4),
-                rightMargin=0.5 * inch, leftMargin=0.5 * inch,
-                topMargin=0.7 * inch, bottomMargin=0.5 * inch
-            )
+                    st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
+                except Exception as e:
+                    st.error(f"Tallennus epäonnistui: {e}")
 
-            doc.build(
-                [Spacer(1, 4 * mm),
-                 Table([[otsikko, paivays]], colWidths=[340, 340], style=[
-                     ("ALIGN", (0, 0), (0, 0), "LEFT"),
-                     ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                     ("VALIGN", (0,0), (-1,-1), "TOP"),
-                     ("BOTTOMPADDING", (0,0), (-1,-1), 0),
-                     ("TOPPADDING", (0,0), (-1,-1), 0),
-                 ]),
-                 Spacer(1, 4 * mm),
-                 table],
-                onFirstPage=pdf_footer,
-                onLaterPages=pdf_footer
-            )
-            buffer.seek(0)
-            return buffer
+        # --- 7) PDF-lataus ---
+        with colR:
+            if st.button("⬇️ Lataa PDF", key="tab4_pdf_btn"):
+                def create_tab4_pdf(df):
+                    buffer = BytesIO()
+                    otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
+                    paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
+                    otsikko = Paragraph("Kaikkien koneiden käyttötunnit ja erotus", otsikkotyyli)
 
-        pdf_buffer = create_tab4_pdf(muokattu)
+                    cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Syötä uudet tunnit","Erotus"]
+                    data = [cols]
+                    bold = ParagraphStyle(name="bold", fontName="Helvetica-Bold", fontSize=8)
+                    red = ParagraphStyle(name="red", fontName="Helvetica-Bold", fontSize=8, textColor=colors.red)
 
-        st.download_button(
-            label="Lataa PDF-tiedosto",
-            data=pdf_buffer,
-            file_name="kaikkien_koneiden_tunnit.pdf",
-            mime="application/pdf"
-        )
+                    for _, row in df[cols].iterrows():
+                        rr = [
+                            Paragraph(str(row["Kone"]), bold),
+                            str(row["Ryhmä"]),
+                            str(row["Viimeisin huolto (pvm)"]),
+                            str(int(row["Viimeisin huolto (tunnit)"])),
+                            str(int(row["Syötä uudet tunnit"])),
+                            Paragraph(str(int(row["Erotus"])), red),
+                        ]
+                        data.append(rr)
 
-        # --- Tallennus nappi ---
-        if st.button("Tallenna kaikkien koneiden tunnit", key="tab4_tallenna_kaikki"):
-            try:
-                ws = get_gsheet_connection("Käyttötunnit")
-                ws.clear()
-                ws.update([muokattu.columns.values.tolist()] + muokattu.astype(str).values.tolist())
-                st.success("Kaikkien koneiden tunnit tallennettu Google Sheetiin!")
-            except Exception as e:
-                st.error(f"Tallennus epäonnistui: {e}")
+                    col_widths = [140, 100, 120, 90, 90, 70]
+                    table = Table(data, repeatRows=1, colWidths=col_widths)
+                    table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.teal),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 8),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ]))
+
+                    def pdf_footer(canvas, doc):
+                        canvas.saveState()
+                        canvas.setFont('Helvetica', 8)
+                        canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
+                        canvas.restoreState()
+
+                    doc = SimpleDocTemplate(
+                        buffer, pagesize=landscape(A4),
+                        rightMargin=0.5 * inch, leftMargin=0.5 * inch,
+                        topMargin=0.7 * inch, bottomMargin=0.5 * inch
+                    )
+                    doc.build(
+                        [Spacer(1, 4 * mm),
+                         Table([[otsikko, paivays]], colWidths=[340, 340], style=[
+                             ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                             ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                             ("VALIGN", (0,0), (-1,-1), "TOP"),
+                             ("BOTTOMPADDING", (0,0), (-1,-1), 0),
+                             ("TOPPADDING", (0,0), (-1,-1), 0),
+                         ]),
+                         Spacer(1, 4 * mm),
+                         table],
+                        onFirstPage=pdf_footer,
+                        onLaterPages=pdf_footer
+                    )
+                    buffer.seek(0)
+                    return buffer
+
+                pdf_buffer = create_tab4_pdf(edited_df)
+                st.download_button(
+                    label="Lataa PDF-tiedosto",
+                    data=pdf_buffer,
+                    file_name="kaikkien_koneiden_tunnit.pdf",
+                    mime="application/pdf",
+                    key="tab4_pdf_dl"
+                )
+
+
 
 
 
