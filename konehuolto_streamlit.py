@@ -599,26 +599,25 @@ with tab3:
 
 
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
+# ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
 
-    # --- Tyylit: kohdistus vasemmalle ja Erotus punaiseksi (aria-colindex = column order 1..n) ---
-    # Sarakejärjestys (column_order): 
-    # 1=Kone, 2=Ryhmä, 3=Viimeisin pvm, 4=Viimeisin tunnit, 5=Syötä uudet, 6=Erotus
+    # --- CSS: muotoilut data_editorille ---
     st.markdown("""
         <style>
         /* Boldaa koneen nimi (1. sarake) */
         [data-testid="stDataEditor"] div[role="gridcell"][aria-colindex="1"] {
             font-weight: 700 !important;
         }
-        /* Numerosarakkeet vasemmalle: 4,5,6 */
+        /* Viimeisin tunnit (4), Syötä uudet (5), Erotus (6) vasemmalle */
         [data-testid="stDataEditor"] div[role="gridcell"][aria-colindex="4"],
         [data-testid="stDataEditor"] div[role="gridcell"][aria-colindex="5"],
         [data-testid="stDataEditor"] div[role="gridcell"][aria-colindex="6"] {
-            justify-content: flex-start !important;    /* flex-start = vasen */
             text-align: left !important;
+            justify-content: flex-start !important;
         }
-        /* Erotus punaisella ja bold (6) */
+        /* Erotus (6) punaisella ja boldattuna */
         [data-testid="stDataEditor"] div[role="gridcell"][aria-colindex="6"] {
             color: red !important;
             font-weight: 700 !important;
@@ -629,7 +628,7 @@ with tab4:
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
     else:
-        # --- 1) Viimeisin huolto (tunnit, pvm) HUOLLOT-shetiltä ---
+        # --- 1) Hae viimeisin huolto huollot-taulukosta ---
         def viimeisin_huolto_tunnit_pvm(konenimi: str):
             dfk = huolto_df[huolto_df["Kone"] == konenimi].copy()
             if dfk.empty:
@@ -644,7 +643,7 @@ with tab4:
             pvm = str(viimeisin.get("Päivämäärä", "-")) or "-"
             return tunnit, pvm
 
-        # --- 2) Viimeksi tallennetut "Uudet tunnit" KÄYTTÖTUNNIT-shetiltä ---
+        # --- 2) Hae viimeksi tallennetut uudet tunnit Käyttötunnit-shetiltä ---
         try:
             ws_kaytto = get_gsheet_connection("Käyttötunnit")
             kaytto_values = ws_kaytto.get_all_values()
@@ -719,7 +718,7 @@ with tab4:
             pass
         edited_df["Erotus"] = (edited_df["Syötä uudet tunnit"].astype(int) - edited_df["Viimeisin huolto (tunnit)"].astype(int)).astype(int)
 
-        # --- 6) Tallennus (UPSERT per kone) ---
+        # --- 6) Tallennus ---
         colL, colR = st.columns([1,1])
         with colL:
             if st.button("💾 Tallenna kaikki", key="tab4_save_all"):
@@ -743,7 +742,6 @@ with tab4:
                         values = ws.get_all_values()
                         idx_map = {name: i for i, name in enumerate(header)}
 
-                    # indeksi: kone -> rivinumero
                     kone_col = idx_map["Kone"]
                     row_index_by_kone = {}
                     for i, r in enumerate(values[1:], start=2):
@@ -850,6 +848,8 @@ with tab4:
                     mime="application/pdf",
                     key="tab4_pdf_dl"
                 )
+
+
 
 
 
