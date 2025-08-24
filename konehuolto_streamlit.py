@@ -599,286 +599,249 @@ with tab3:
 
 
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
-# ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
 
+    # Pienet apurit
+    def safe_int(x) -> int:
+        """Muunna mitä vain kokonaisluvuksi (pilkut ja pisteet sallittu). Tyhjä -> 0."""
+        if x is None:
+            return 0
+        s = str(x).strip().replace(",", ".")
+        try:
+            return int(float(s))
+        except:
+            return 0
+
+    def viimeisin_huolto_koneelle(df_huollot: pd.DataFrame, kone_nimi: str):
+        """Palauta (pvm_str, tunnit_int) koneen uusimman huollon mukaan."""
+        sub = df_huollot[df_huollot["Kone"] == kone_nimi].copy()
+        if sub.empty:
+            return "-", 0
+        sub["pvm_dt"] = pd.to_datetime(sub["Päivämäärä"], dayfirst=True, errors="coerce")
+        sub = sub.sort_values("pvm_dt", ascending=False)
+        pvm = sub.iloc[0].get("Päivämäärä", "-")
+        tunnit = safe_int(sub.iloc[0].get("Tunnit", 0))
+        return pvm, tunnit
+
+    def lue_kayttotunnit_sheet_df() -> pd.DataFrame:
+        """Lue Käyttötunnit-sheette ja palauta DataFrame. Jos tyhjä/puuttuu, palauta tyhjä df oikeilla otsikoilla."""
+        try:
+            ws = get_gsheet_connection("Käyttötunnit")
+            data = ws.get_all_records()
+            if not data:
+                return pd.DataFrame(columns=["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"])
+            dfk = pd.DataFrame(data)
+            # Varmistetaan sarakkeet
+            for col in ["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"]:
+                if col not in dfk.columns:
+                    dfk[col] = ""
+            return dfk
+        except Exception:
+            return pd.DataFrame(columns=["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"])
+
+    def hae_viimeisin_uusi_tunti_map(df_kaytto: pd.DataFrame) -> dict:
+        """Palauta {Kone: viimeisin 'Uudet tunnit'} sheetiltä (Aika uusimmasta)."""
+        if df_kaytto.empty:
+            return {}
+        tmp = df_kaytto.copy()
+        # Parsitaan aika, valitaan uusin per kone
+        tmp["aika_dt"] = pd.to_datetime(tmp["Aika"], dayfirst=True, errors="coerce")
+        tmp.sort_values("aika_dt", ascending=True, inplace=True)
+        last_rows = tmp.groupby("Kone", as_index=False).tail(1)
+        m = {}
+        for _, r in last_rows.iterrows():
+            m[str(r["Kone"])] = safe_int(r.get("Uudet tunnit", 0))
+        return m
+
+    # Jos ei koneita -> info
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
-    else:
-        # --- Apufunktiot ---
-        def safe_int(x, default=0):
-            try:
-                # sallitaan myös 1, 1.0, "1", "1,0"
-                s = str(x).strip().replace(",", ".")
-                if s == "" or s.lower() == "nan":
-                    return default
-                return int(float(s))
-            except Exception:
-                return default
+        st.stop()
 
-        @st.cache_data(show_spinner=False)
-        def lue_kayttotunnit_sheet():
-            try:
-                ws = get_gsheet_connection("Käyttötunnit")
-                raw = ws.get_all_values()
-                if not raw:
-                    return pd.DataFrame(columns=["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"])
-                header = raw[0]
-                rows = raw[1:]
-                df = pd.DataFrame(rows, columns=header) if rows else pd.DataFrame(columns=header)
-                # Normaali sarakejärjestys
-                for col in ["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"]:
-                    if col not in df.columns:
-                        df[col] = ""
-                return df
-            except Exception:
-                # Jos välilehteä ei ole tai on tyhjä
-                return pd.DataFrame(columns=["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"])
+    # Luetaan viimeksi tallennetut käyttötunnit sheetiltä
+    kaytto_df = lue_kayttotunnit_sheet_df()
+    viimeisin_uudet_map = hae_viimeisin_uusi_tunti_map(kaytto_df)
 
-        def viimeisin_huolto_koneelle(df_huollot, kone_nimi):
-            d = df_huollot[df_huollot["Kone"] == kone_nimi].copy()
-            if d.empty:
-                return {"pvm": "-", "tunnit": 0}
-            d["pvm_dt"] = pd.to_datetime(d["Päivämäärä"], dayfirst=True, errors="coerce")
-            d = d.sort_values("pvm_dt", ascending=False)
-            r = d.iloc[0]
-            return {
-                "pvm": str(r.get("Päivämäärä","") or "-"),
-                "tunnit": safe_int(r.get("Tunnit", 0), 0)
-            }
+    # Valmistellaan näkymälista koneista
+    koneet_nimet = koneet_df["Kone"].tolist()
+    rivit = []
+    for kone in koneet_nimet:
+        ryhma = koneet_df.loc[koneet_df["Kone"] == kone, "Ryhmä"].values[0] if "Ryhmä" in koneet_df.columns else ""
+        pvm, viimeisin_tunnit = viimeisin_huolto_koneelle(huolto_df, kone)
+        # Esitäytetään uudet tunnit: joko sheetin viimeisin, tai viimeisimmän huollon tunti
+        default_uudet = viimeisin_uudet_map.get(kone, viimeisin_tunnit)
+        rivit.append({
+            "Kone": kone,
+            "Ryhmä": ryhma,
+            "Viimeisin huolto (pvm)": pvm,
+            "Viimeisin huolto (tunnit)": viimeisin_tunnit,
+            "Syötä uudet tunnit (default)": safe_int(default_uudet),
+        })
 
-        def viimeksi_tallennetut_uudet_tunnit(df_kaytto, kone_nimi):
-            d = df_kaytto[df_kaytto["Kone"] == kone_nimi].copy()
-            if d.empty:
-                return None  # ei tietoa
-            # uusin Aika kentän mukaan
-            try:
-                d["aika_dt"] = pd.to_datetime(d["Aika"], format="%d.%m.%Y %H:%M", errors="coerce")
-            except Exception:
-                d["aika_dt"] = pd.NaT
-            d = d.sort_values("aika_dt", ascending=False)
-            r = d.iloc[0]
-            return safe_int(r.get("Uudet tunnit", None)) if pd.notna(r.get("Uudet tunnit", None)) else None
+    df_tunnit = pd.DataFrame(rivit)
 
-        # --- Lue mahdolliset aiemmat käyttötunnit ---
-        kaytto_df = lue_kayttotunnit_sheet()
+    # --- UI: yksi "taulukko", jossa syötetään tunnit rivikohtaisesti ---
+    # Pieni CSS: numeroiden vasen tasaus ja erotuksen punainen teksti on markdownilla, mutta inputeille pakotetaan vasen tasaus
+    st.markdown("""
+    <style>
+      div[data-testid="stNumberInput"] input {
+        text-align: left;
+      }
+      .tab4-table-header { font-weight: 600; padding: 4px 0; }
+      .tab4-cell { padding: 2px 0; }
+    </style>
+    """, unsafe_allow_html=True)
 
-        # --- Rakenna editorin DataFrame koneittain ---
-        rivit = []
-        for _, krow in koneet_df.iterrows():
-            kone_nimi = str(krow.get("Kone",""))
-            ryhma = str(krow.get("Ryhmä",""))
+    # Otsikkorivi
+    colw = [0.24, 0.16, 0.14, 0.14, 0.16, 0.16]  # suhteelliset leveydet
+    cols = st.columns(colw, gap="small")
+    cols[0].markdown("<div class='tab4-table-header'>Kone</div>", unsafe_allow_html=True)
+    cols[1].markdown("<div class='tab4-table-header'>Ryhmä</div>", unsafe_allow_html=True)
+    cols[2].markdown("<div class='tab4-table-header'>Viimeisin huolto (pvm)</div>", unsafe_allow_html=True)
+    cols[3].markdown("<div class='tab4-table-header'>Viimeisin huolto (tunnit)</div>", unsafe_allow_html=True)
+    cols[4].markdown("<div class='tab4-table-header'>Syötä uudet tunnit</div>", unsafe_allow_html=True)
+    cols[5].markdown("<div class='tab4-table-header'>Erotus</div>", unsafe_allow_html=True)
 
-            # Viimeisin HUOLTO (pvm + tunnit) Huollot‑sheetiltä
-            v = viimeisin_huolto_koneelle(huolto_df, kone_nimi)
-            viimeisin_pvm = v["pvm"]
-            viimeisin_tunnit = v["tunnit"]
+    # Käyttäjän syötteet (pidetään sessiossa jotta eivät nollaannu turhaan)
+    if "tab4_inputs" not in st.session_state:
+        st.session_state.tab4_inputs = {}
 
-            # Jos on aiemmin tallennettu "Uudet tunnit" Käyttötunnit‑välilehdeltä, käytä sitä esitäyttönä
-            saved_new = viimeksi_tallennetut_uudet_tunnit(kaytto_df, kone_nimi)
-            syota_uudet = saved_new if saved_new is not None else viimeisin_tunnit
+    # Rivien piirtäminen + syötteiden keruu
+    for i, row in df_tunnit.iterrows():
+        c = st.columns(colw, gap="small")
 
-            erotus = safe_int(syota_uudet) - safe_int(viimeisin_tunnit)
+        kone_n = str(row["Kone"])
+        ryhma = str(row["Ryhmä"])
+        pvm   = str(row["Viimeisin huolto (pvm)"])
+        ed    = safe_int(row["Viimeisin huolto (tunnit)"])
 
-            rivit.append({
-                "Kone": kone_nimi,
-                "Ryhmä": ryhma,
-                "Viimeisin huolto (pvm)": viimeisin_pvm,
-                "Viimeisin huolto (tunnit)": safe_int(viimeisin_tunnit),
-                "Syötä uudet tunnit": safe_int(syota_uudet),
-                "Erotus": safe_int(erotus),
-            })
+        # Esivalinta / aiempi syöte
+        state_key = f"tab4_uudet_{i}"
+        default_uudet = st.session_state.tab4_inputs.get(state_key, safe_int(row["Syötä uudet tunnit (default)"]))
 
-        base_df = pd.DataFrame(rivit, columns=[
-            "Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Syötä uudet tunnit","Erotus"
-        ])
+        # Solut
+        c[0].markdown(f"<div class='tab4-cell'><b>{kone_n}</b></div>", unsafe_allow_html=True)
+        c[1].markdown(f"<div class='tab4-cell'>{ryhma}</div>", unsafe_allow_html=True)
+        c[2].markdown(f"<div class='tab4-cell'>{pvm}</div>", unsafe_allow_html=True)
+        c[3].markdown(f"<div class='tab4-cell'>{ed}</div>", unsafe_allow_html=True)
 
-        # Pidä editorin sisältö session-statessa, jotta erotus päivittyy heti muokkauksista
-        if "tab4_df" not in st.session_state:
-            st.session_state.tab4_df = base_df.copy()
-
-        # Laske erotus aina uudelleen ennen näyttöä (jos käyttäjä on muokannut arvoja)
-        ss_df = st.session_state.tab4_df.copy()
-        ss_df["Syötä uudet tunnit"] = ss_df["Syötä uudet tunnit"].apply(safe_int)
-        ss_df["Viimeisin huolto (tunnit)"] = ss_df["Viimeisin huolto (tunnit)"].apply(safe_int)
-        ss_df["Erotus"] = ss_df["Syötä uudet tunnit"] - ss_df["Viimeisin huolto (tunnit)"]
-
-        # --- Yksi muokattava taulukko ---
-        edited = st.data_editor(
-            ss_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Kone": st.column_config.TextColumn(disabled=True),
-                "Ryhmä": st.column_config.TextColumn(disabled=True),
-                "Viimeisin huolto (pvm)": st.column_config.TextColumn(disabled=True),
-                "Viimeisin huolto (tunnit)": st.column_config.NumberColumn(
-                    disabled=True, step=1, min_value=0, format="%d"
-                ),
-                "Syötä uudet tunnit": st.column_config.NumberColumn(
-                    step=1, min_value=0, format="%d", help="Syötä kokonaisluku (h)."
-                ),
-                "Erotus": st.column_config.NumberColumn(
-                    disabled=True, step=1, format="%d", help="Uudet tunnit - Viimeisin huolto"
-                ),
-            },
-            key="tab4_editor"
+        # Syöttö (kokonaisluvut, vasen tasaus CSS:llä)
+        uudet = c[4].number_input(
+            label="",
+            min_value=0,
+            step=1,
+            value=int(default_uudet),
+            key=f"tab4_num_{i}"
         )
+        st.session_state.tab4_inputs[state_key] = uudet  # talteen
 
-        # Päivitä session-state ja laske erotus syötön perusteella
-        edited["Syötä uudet tunnit"] = edited["Syötä uudet tunnit"].apply(safe_int)
-        edited["Viimeisin huolto (tunnit)"] = edited["Viimeisin huolto (tunnit)"].apply(safe_int)
-        edited["Erotus"] = edited["Syötä uudet tunnit"] - edited["Viimeisin huolto (tunnit)"]
-        st.session_state.tab4_df = edited
+        erotus = safe_int(uudet) - ed
+        c[5].markdown(f"<div class='tab4-cell' style='color:#d00;'>{erotus}</div>", unsafe_allow_html=True)
 
-        col_save, col_pdf = st.columns(2)
+        # Päivitä "laskettu" DataFrame myöhempää tallennusta/PDF:ää varten
+        df_tunnit.at[i, "Syötä uudet tunnit"] = safe_int(uudet)
+        df_tunnit.at[i, "Erotus"] = erotus
 
-        # --- Tallennus (koko taulukko yhdellä päivityksellä, upsert kone-nimellä) ---
-        if col_save.button("Tallenna kaikki rivit Google Sheetiin", type="primary", key="tab4_save_all"):
-            try:
-                ws = get_gsheet_connection("Käyttötunnit")
-                nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+    # --- Tallenna kaikki: korvaa koko 'Käyttötunnit' välilehden sisältö yhdellä päivityksellä ---
+    col_save, col_pdf = st.columns([0.4, 0.6])
 
-                # Lue olemassa oleva sheet DF
-                current = lue_kayttotunnit_sheet()
+    if col_save.button("💾 Tallenna kaikkien koneiden tunnit", key="tab4_save_all"):
+        try:
+            ws = get_gsheet_connection("Käyttötunnit")
+            nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
 
-                # Muunna nykyinen DF dictiksi kone -> rivi (otetaan uusin rivi jos duplikaatteja)
-                latest_by_kone = {}
-                if not current.empty:
-                    # Järjestetään ajan mukaan, uusin ensin
-                    try:
-                        current["aika_dt"] = pd.to_datetime(current["Aika"], format="%d.%m.%Y %H:%M", errors="coerce")
-                    except Exception:
-                        current["aika_dt"] = pd.NaT
-                    current = current.sort_values("aika_dt", ascending=False)
-                    for _, r in current.iterrows():
-                        k = str(r.get("Kone",""))
-                        if k and k not in latest_by_kone:
-                            latest_by_kone[k] = r
+            # Rakenna koko taulukko kerralla: otsikot + rivit (yksi / kone)
+            header = ["Aika", "Kone", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"]
+            body = []
+            for _, r in df_tunnit.iterrows():
+                body.append([
+                    nyt,
+                    str(r["Kone"]),
+                    str(r["Ryhmä"]),
+                    safe_int(r["Viimeisin huolto (tunnit)"]),
+                    safe_int(r.get("Syötä uudet tunnit", 0)),
+                    safe_int(r.get("Erotus", 0)),
+                ])
 
-                # Upsert jokaiselle riville editorista
-                for _, r in st.session_state.tab4_df.iterrows():
-                    k = str(r["Kone"])
-                    ry = str(r["Ryhmä"])
-                    ed = safe_int(r["Viimeisin huolto (tunnit)"])
-                    uu = safe_int(r["Syötä uudet tunnit"])
-                    er = safe_int(r["Erotus"])
-                    latest_by_kone[k] = pd.Series({
-                        "Aika": nyt,
-                        "Kone": k,
-                        "Ryhmä": ry,
-                        "Edellinen huolto": str(ed),
-                        "Uudet tunnit": str(uu),
-                        "Erotus": str(er),
-                    })
+            # Tyhjennä ja kirjoita yhdellä update-kutsulla (2 writeä: clear + update)
+            ws.clear()
+            ws.update([header] + body)
 
-                # Kirjoita kerralla: header + rivit kone-avaimen mukaan aakkosissa
-                out_rows = []
-                for k in sorted(latest_by_kone.keys()):
-                    s = latest_by_kone[k]
-                    out_rows.append([
-                        s.get("Aika",""), s.get("Kone",""), s.get("Ryhmä",""),
-                        s.get("Edellinen huolto",""), s.get("Uudet tunnit",""), s.get("Erotus","")
-                    ])
+            st.success("Tallennettu Käyttötunnit‑välilehdelle!")
+        except Exception as e:
+            st.error(f"Tallennus epäonnistui: {e}")
 
-                header = ["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"]
-                ws.clear()
-                if out_rows:
-                    ws.update([header] + out_rows)
-                else:
-                    ws.update([header])
+    # --- PDF-lataus (bytes suoraan napille) ---
+    def make_pdf_bytes(df):
+        buf = BytesIO()
+        otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
+        paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
+        otsikko = Paragraph("Kaikkien koneiden käyttötunnit ja erotus", otsikkotyyli)
 
-                st.success("Tallennettu Käyttötunnit‑välilehdelle!")
-            except Exception as e:
-                st.error(f"Tallennus epäonnistui: {e}")
+        cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Syötä uudet tunnit","Erotus"]
+        data = [cols]
+        for _, r in df.iterrows():
+            k  = Paragraph(f"<b>{str(r['Kone'])}</b>", ParagraphStyle(name="kb", fontName="Helvetica-Bold", fontSize=9))
+            ry = str(r["Ryhmä"])
+            pv = str(r["Viimeisin huolto (pvm)"])
+            ed = safe_int(r["Viimeisin huolto (tunnit)"])
+            uu = safe_int(r.get("Syötä uudet tunnit", 0))
+            er = safe_int(r.get("Erotus", 0))
+            er_cell = Paragraph(f"<font color='red'>{er}</font>", ParagraphStyle(name="red", fontName="Helvetica", fontSize=9))
+            data.append([k, ry, pv, f"{ed:d}", f"{uu:d}", er_cell])
 
-        # --- PDF (kone bold, erotus punaisella) ---
-        if col_pdf.button("Lataa PDF"):
-            try:
-                from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-                from reportlab.lib.pagesizes import landscape, A4
-                from reportlab.lib.styles import ParagraphStyle
-                from reportlab.lib import colors
-                from reportlab.lib.units import inch, mm
+        col_widths = [170, 120, 120, 110, 110, 80]
+        table = Table(data, repeatRows=1, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.teal),
+            ('TEXTCOLOR',  (0,0), (-1,0), colors.whitesmoke),
+            ('FONTNAME',   (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE',   (0,0), (-1,-1), 9),
+            ('GRID',       (0,0), (-1,-1), 0.5, colors.black),
+            ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
+            # Vasen tasaus kaikille sarakkeille
+            ('ALIGN',      (0,0), (-1,-1), 'LEFT'),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+        ]))
 
-                def make_pdf_buffer(df):
-                    buf = BytesIO()
-                    otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
-                    paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
-                    otsikko = Paragraph("Kaikkien koneiden käyttötunnit ja erotus", otsikkotyyli)
+        def footer(canvas, doc):
+            canvas.saveState()
+            canvas.setFont('Helvetica', 8)
+            canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
+            canvas.restoreState()
 
-                    # Muodosta taulukkodata
-                    cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Syötä uudet tunnit","Erotus"]
-                    data = [cols]
-                    for _, r in df.iterrows():
-                        k = str(r["Kone"])
-                        ry = str(r["Ryhmä"])
-                        pvm = str(r["Viimeisin huolto (pvm)"])
-                        ed = safe_int(r["Viimeisin huolto (tunnit)"])
-                        uu = safe_int(r["Syötä uudet tunnit"])
-                        er = safe_int(r["Erotus"])
+        doc = SimpleDocTemplate(
+            buf, pagesize=landscape(A4),
+            rightMargin=0.5*inch, leftMargin=0.5*inch,
+            topMargin=0.7*inch, bottomMargin=0.5*inch
+        )
+        doc.build(
+            [Spacer(1, 4*mm),
+             Table([[otsikko, paivays]], colWidths=[340, 340], style=[
+                 ("ALIGN", (0,0), (0,0), "LEFT"),
+                 ("ALIGN", (1,0), (1,0), "RIGHT"),
+                 ("VALIGN", (0,0), (-1,-1), "TOP"),
+                 ("BOTTOMPADDING", (0,0), (-1,-1), 0),
+                 ("TOPPADDING",   (0,0), (-1,-1), 0),
+             ]),
+             Spacer(1, 4*mm),
+             table],
+            onFirstPage=footer,
+            onLaterPages=footer
+        )
+        return buf.getvalue()
 
-                        # kone bold
-                        k_cell = Paragraph(f"<b>{k}</b>", ParagraphStyle(name="kb", fontName="Helvetica-Bold", fontSize=9))
-                        # erotus punaisena
-                        er_cell = Paragraph(f"<font color='red'>{er}</font>", ParagraphStyle(name="red", fontName="Helvetica", fontSize=9))
-                        row = [k_cell, ry, pvm, f"{ed:d}", f"{uu:d}", er_cell]
-                        data.append(row)
+    col_pdf.download_button(
+        "⬇️ Lataa PDF‑tiedosto",
+        data=make_pdf_bytes(df_tunnit.copy()),
+        file_name="kaikkien_koneiden_tunnit.pdf",
+        mime="application/pdf",
+        type="secondary",
+        key="tab4_pdf_dl"
+    )
 
-                    col_widths = [160, 120, 120, 110, 110, 80]
-                    table = Table(data, repeatRows=1, colWidths=col_widths)
-                    table.setStyle(TableStyle([
-                        ('BACKGROUND', (0,0), (-1,0), colors.teal),
-                        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                        ('FONTSIZE', (0,0), (-1,-1), 9),
-                        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-                        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                        # vasen tasaus luvuissa (3–5 sarakkeet) ja tekstissä (0–2)
-                        ('ALIGN', (0,0), (2,-1), 'LEFT'),
-                        ('ALIGN', (3,0), (5,-1), 'LEFT'),
-                        ('BOTTOMPADDING', (0,0), (-1,0), 6),
-                    ]))
 
-                    def footer(canvas, doc):
-                        canvas.saveState()
-                        canvas.setFont('Helvetica', 8)
-                        canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
-                        canvas.restoreState()
-
-                    doc = SimpleDocTemplate(
-                        buf, pagesize=landscape(A4),
-                        rightMargin=0.5*inch, leftMargin=0.5*inch,
-                        topMargin=0.7*inch, bottomMargin=0.5*inch
-                    )
-                    doc.build(
-                        [Spacer(1, 4*mm),
-                         Table([[otsikko, paivays]], colWidths=[340, 340], style=[
-                             ("ALIGN", (0,0), (0,0), "LEFT"),
-                             ("ALIGN", (1,0), (1,0), "RIGHT"),
-                             ("VALIGN", (0,0), (-1,-1), "TOP"),
-                             ("BOTTOMPADDING", (0,0), (-1,-1), 0),
-                             ("TOPPADDING", (0,0), (-1,-1), 0),
-                         ]),
-                         Spacer(1, 4*mm),
-                         table],
-                        onFirstPage=footer,
-                        onLaterPages=footer
-                    )
-                    buf.seek(0)
-                    return buf
-
-                pdf_buf = make_pdf_buffer(st.session_state.tab4_df)
-                st.download_button(
-                    "Lataa PDF‑tiedosto",
-                    data=pdf_buf,
-                    file_name="kaikkien_koneiden_tunnit.pdf",
-                    mime="application/pdf",
-                    type="secondary"
-                )
-            except Exception as e:
-                st.error(f"PDF:n luonti epäonnistui: {e}")
 
 
 
