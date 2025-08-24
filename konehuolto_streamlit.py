@@ -602,6 +602,7 @@ with tab3:
 # ----------- TAB 4: KÄYTTÖTUNNIT (yksi taulukko) -----------
 # ----------- TAB 4: KÄYTTÖTUNNIT (yksi taulukko + PDF) -----------
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
+# ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
 
@@ -881,6 +882,8 @@ with tab4:
                     mime="application/pdf",
                     key="tab4_pdf_dl"
                 )
+
+
 
 
 
