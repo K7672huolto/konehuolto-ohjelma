@@ -600,6 +600,7 @@ with tab3:
 
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
+# ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
 
@@ -789,6 +790,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
