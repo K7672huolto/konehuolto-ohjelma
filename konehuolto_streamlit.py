@@ -13,7 +13,7 @@ from reportlab.lib.units import inch, mm
 import base64
 import uuid
 
-# --------- LOGIN ---------
+# --------- LOGIN (Enterillä) ---------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "login_failed" not in st.session_state:
@@ -21,9 +21,14 @@ if "login_failed" not in st.session_state:
 
 if not st.session_state.logged_in:
     st.title("Kirjaudu sisään")
-    username = st.text_input("Käyttäjätunnus", key="login_user")
-    password = st.text_input("Salasana", type="password", key="login_pw")
-    if st.button("Kirjaudu", key="login_btn"):
+
+    # Lomake: Enter painaminen missä tahansa kentässä lähettää lomakkeen
+    with st.form("login_form", clear_on_submit=False):
+        username = st.text_input("Käyttäjätunnus", key="login_user")
+        password = st.text_input("Salasana", type="password", key="login_pw")
+        submitted = st.form_submit_button("Kirjaudu")  # Enter toimii tässä automaattisesti
+
+    if submitted:
         if username == "mattipa" and password == "jdtoro#":
             st.session_state.logged_in = True
             st.session_state.login_failed = False
@@ -31,7 +36,9 @@ if not st.session_state.logged_in:
         else:
             st.session_state.login_failed = True
             st.error("Väärä käyttäjätunnus tai salasana.")
+
     st.stop()
+
 
 # --------- TAUSTAKUVA (banneri) ----------
 def taustakuva_local(filename):
@@ -160,7 +167,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Käyttötunnit"
 ])
 
-# ----------- TAB 1: LISÄÄ HUOLTO -----------
+
 # ----------- TAB 1: LISÄÄ HUOLTO -----------
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
@@ -859,6 +866,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
