@@ -597,15 +597,35 @@ with tab3:
     else:
         st.info("Ei ryhmiä.")
 
-
-# ----------- TAB 4: KÄYTTÖTUNNIT -----------
-# ----------- TAB 4: KÄYTTÖTUNNIT -----------
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
 
-    # Apufunktiot
+    # Piilota number_inputin ±-nuolet ja pakota vasen tasaus
+    st.markdown("""
+    <style>
+      /* Piilota st.number_input up/down-napit (WebKit + Firefox) */
+      div[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
+      div[data-testid="stNumberInput"] input::-webkit-inner-spin-button {
+          -webkit-appearance: none !important;
+          margin: 0 !important;
+      }
+      div[data-testid="stNumberInput"] input[type=number] {
+          -moz-appearance: textfield !important;
+      }
+      /* Vasen tasaus syöttökenttään */
+      div[data-testid="stNumberInput"] input {
+          text-align: left;
+      }
+      /* Kevyt taulukkutyyli */
+      .tab4-table-header { font-weight: 600; padding: 4px 0; }
+      .tab4-cell { padding: 2px 0; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Apurit
     def safe_int(x) -> int:
+        """Muunna mitä vain kokonaisluvuksi (pilkut ja pisteet sallittu). Tyhjä -> 0."""
         if x is None:
             return 0
         s = str(x).strip().replace(",", ".")
@@ -615,6 +635,7 @@ with tab4:
             return 0
 
     def viimeisin_huolto_koneelle(df_huollot: pd.DataFrame, kone_nimi: str):
+        """Palauta (pvm_str, tunnit_int) koneen uusimman huollon mukaan."""
         sub = df_huollot[df_huollot["Kone"] == kone_nimi].copy()
         if sub.empty:
             return "-", 0
@@ -625,6 +646,7 @@ with tab4:
         return pvm, tunnit
 
     def lue_kayttotunnit_sheet_df() -> pd.DataFrame:
+        """Lue Käyttötunnit-välilehti. Jos tyhjä/puuttuu, palauta tyhjä df oikeilla otsikoilla."""
         try:
             ws = get_gsheet_connection("Käyttötunnit")
             data = ws.get_all_records()
@@ -639,6 +661,7 @@ with tab4:
             return pd.DataFrame(columns=["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"])
 
     def hae_viimeisin_uusi_tunti_map(df_kaytto: pd.DataFrame) -> dict:
+        """Palauta {Kone: viimeisin 'Uudet tunnit'} sheetiltä (Aika uusimmasta)."""
         if df_kaytto.empty:
             return {}
         tmp = df_kaytto.copy()
@@ -650,13 +673,16 @@ with tab4:
             m[str(r["Kone"])] = safe_int(r.get("Uudet tunnit", 0))
         return m
 
+    # Ei koneita -> info
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
         st.stop()
 
+    # Lue viimeksi tallennetut käyttötunnit sheetiltä
     kaytto_df = lue_kayttotunnit_sheet_df()
     viimeisin_uudet_map = hae_viimeisin_uusi_tunti_map(kaytto_df)
 
+    # Rakenna näkymärivit
     koneet_nimet = koneet_df["Kone"].tolist()
     rivit = []
     for kone in koneet_nimet:
@@ -670,75 +696,92 @@ with tab4:
             "Viimeisin huolto (tunnit)": viimeisin_tunnit,
             "Syötä uudet tunnit (default)": safe_int(default_uudet),
         })
-
     df_tunnit = pd.DataFrame(rivit)
 
-    st.markdown("""
-    <style>
-      div[data-testid="stNumberInput"] input { text-align: left; }
-      .tab4-table-header { font-weight: 600; padding: 4px 0; }
-      .tab4-cell { padding: 2px 0; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    colw = [0.24, 0.16, 0.14, 0.14, 0.16, 0.16]
-    cols = st.columns(colw, gap="small")
-    headers = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Syötä uudet tunnit","Erotus"]
-    for i, h in enumerate(headers):
-        cols[i].markdown(f"<div class='tab4-table-header'>{h}</div>", unsafe_allow_html=True)
-
+    # Pidetään käyttäjän rivikohtaiset syötteet sessiossa
     if "tab4_inputs" not in st.session_state:
         st.session_state.tab4_inputs = {}
 
+    # Otsikkorivi (yksi taulukko)
+    colw = [0.24, 0.16, 0.14, 0.14, 0.16, 0.16]  # suhteelliset leveydet
+    cols = st.columns(colw, gap="small")
+    cols[0].markdown("<div class='tab4-table-header'>Kone</div>", unsafe_allow_html=True)
+    cols[1].markdown("<div class='tab4-table-header'>Ryhmä</div>", unsafe_allow_html=True)
+    cols[2].markdown("<div class='tab4-table-header'>Viimeisin huolto (pvm)</div>", unsafe_allow_html=True)
+    cols[3].markdown("<div class='tab4-table-header'>Viimeisin huolto (tunnit)</div>", unsafe_allow_html=True)
+    cols[4].markdown("<div class='tab4-table-header'>Syötä uudet tunnit</div>", unsafe_allow_html=True)
+    cols[5].markdown("<div class='tab4-table-header'>Erotus</div>", unsafe_allow_html=True)
+
+    # Rivien piirtäminen
     for i, row in df_tunnit.iterrows():
         c = st.columns(colw, gap="small")
 
         kone_n = str(row["Kone"])
-        ryhma = str(row["Ryhmä"])
-        pvm   = str(row["Viimeisin huolto (pvm)"])
-        ed    = safe_int(row["Viimeisin huolto (tunnit)"])
+        ryhma  = str(row["Ryhmä"])
+        pvm    = str(row["Viimeisin huolto (pvm)"])
+        ed     = safe_int(row["Viimeisin huolto (tunnit)"])
 
         state_key = f"tab4_uudet_{i}"
         default_uudet = st.session_state.tab4_inputs.get(state_key, safe_int(row["Syötä uudet tunnit (default)"]))
 
+        # Solut (kone bold)
         c[0].markdown(f"<div class='tab4-cell'><b>{kone_n}</b></div>", unsafe_allow_html=True)
         c[1].markdown(f"<div class='tab4-cell'>{ryhma}</div>", unsafe_allow_html=True)
         c[2].markdown(f"<div class='tab4-cell'>{pvm}</div>", unsafe_allow_html=True)
         c[3].markdown(f"<div class='tab4-cell'>{ed}</div>", unsafe_allow_html=True)
 
-        uudet = c[4].number_input("", min_value=0, step=1, value=int(default_uudet), key=f"tab4_num_{i}")
+        # Syöttö: kokonaisluvut, ±-nuolet piilotettu CSS:llä
+        uudet = c[4].number_input(
+            label="",
+            min_value=0,
+            step=1,
+            value=int(default_uudet),
+            key=f"tab4_num_{i}"
+        )
         st.session_state.tab4_inputs[state_key] = uudet
 
         erotus = safe_int(uudet) - ed
         c[5].markdown(f"<div class='tab4-cell' style='color:#d00;'>{erotus}</div>", unsafe_allow_html=True)
 
+        # Päivitetään DataFrame tallennusta/PDF:ää varten
         df_tunnit.at[i, "Syötä uudet tunnit"] = safe_int(uudet)
         df_tunnit.at[i, "Erotus"] = erotus
 
+    # --- Tallenna kaikki (korvaa koko sheet) & PDF ---
     col_save, col_pdf = st.columns([0.4, 0.6])
 
     if col_save.button("💾 Tallenna kaikkien koneiden tunnit", key="tab4_save_all"):
         try:
             ws = get_gsheet_connection("Käyttötunnit")
             nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+
             header = ["Aika", "Kone", "Ryhmä", "Edellinen huolto", "Uudet tunnit", "Erotus"]
             body = []
             for _, r in df_tunnit.iterrows():
-                body.append([nyt, str(r["Kone"]), str(r["Ryhmä"]),
-                             safe_int(r["Viimeisin huolto (tunnit)"]),
-                             safe_int(r.get("Syötä uudet tunnit", 0)),
-                             safe_int(r.get("Erotus", 0))])
+                body.append([
+                    nyt,
+                    str(r["Kone"]),
+                    str(r["Ryhmä"]),
+                    safe_int(r["Viimeisin huolto (tunnit)"]),
+                    safe_int(r.get("Syötä uudet tunnit", 0)),
+                    safe_int(r.get("Erotus", 0)),
+                ])
+
+            # Yksi tyhjennys + yksi update (minimoi write-pyynnöt)
             ws.clear()
             ws.update([header] + body)
+
             st.success("Tallennettu Käyttötunnit-välilehdelle!")
         except Exception as e:
             st.error(f"Tallennus epäonnistui: {e}")
 
+    # PDF-lataus
     def make_pdf_bytes(df):
         buf = BytesIO()
         otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
         paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
         otsikko = Paragraph("Kaikkien koneiden käyttötunnit ja erotus", otsikkotyyli)
+
         cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Syötä uudet tunnit","Erotus"]
         data = [cols]
         for _, r in df.iterrows():
@@ -750,6 +793,7 @@ with tab4:
             er = safe_int(r.get("Erotus", 0))
             er_cell = Paragraph(f"<font color='red'>{er}</font>", ParagraphStyle(name="red", fontName="Helvetica", fontSize=9))
             data.append([k, ry, pv, f"{ed:d}", f"{uu:d}", er_cell])
+
         col_widths = [170, 120, 120, 110, 110, 80]
         table = Table(data, repeatRows=1, colWidths=col_widths)
         table.setStyle(TableStyle([
@@ -759,16 +803,21 @@ with tab4:
             ('FONTSIZE',   (0,0), (-1,-1), 9),
             ('GRID',       (0,0), (-1,-1), 0.5, colors.black),
             ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
-            ('ALIGN',      (0,0), (-1,-1), 'LEFT'),
+            ('ALIGN',      (0,0), (-1,-1), 'LEFT'),  # vasen tasaus
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
         ]))
+
         def footer(canvas, doc):
             canvas.saveState()
             canvas.setFont('Helvetica', 8)
             canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
             canvas.restoreState()
-        doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
-                                rightMargin=0.5*inch, leftMargin=0.5*inch,
-                                topMargin=0.7*inch, bottomMargin=0.5*inch)
+
+        doc = SimpleDocTemplate(
+            buf, pagesize=landscape(A4),
+            rightMargin=0.5*inch, leftMargin=0.5*inch,
+            topMargin=0.7*inch, bottomMargin=0.5*inch
+        )
         doc.build(
             [Spacer(1, 4*mm),
              Table([[otsikko, paivays]], colWidths=[340, 340], style=[
@@ -778,8 +827,11 @@ with tab4:
                  ("BOTTOMPADDING", (0,0), (-1,-1), 0),
                  ("TOPPADDING",   (0,0), (-1,-1), 0),
              ]),
-             Spacer(1, 4*mm), table],
-            onFirstPage=footer, onLaterPages=footer)
+             Spacer(1, 4*mm),
+             table],
+            onFirstPage=footer,
+            onLaterPages=footer
+        )
         return buf.getvalue()
 
     col_pdf.download_button(
@@ -790,6 +842,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
