@@ -598,25 +598,43 @@ with tab3:
         st.info("Ei ryhmiä.")
 
 # ----------- TAB 4: KÄYTTÖTUNNIT -----------
+# ----------- TAB 4: KÄYTTÖTUNNIT -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit ja erotus")
 
-    # Piilota number_inputin ±-nuolet ja pakota vasen tasaus
+    # Piilota number_inputin ±-napit (eri Streamlit-versioiden varalta) ja pakota vasen tasaus
     st.markdown("""
     <style>
-      /* Piilota st.number_input up/down-napit (WebKit + Firefox) */
+      /* 1) Piilota selaimen natiivit spin-nuoliksi tulkittavat elementit */
       div[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
       div[data-testid="stNumberInput"] input::-webkit-inner-spin-button {
           -webkit-appearance: none !important;
           margin: 0 !important;
       }
       div[data-testid="stNumberInput"] input[type=number] {
-          -moz-appearance: textfield !important;
+          -moz-appearance: textfield !important; /* Firefox */
       }
+
+      /* 2) Piilota Streamlitin omat + / - napit (eri toteutukset) */
+      div[data-testid="stNumberInput"] button { 
+          display: none !important; 
+      }
+      /* Jos napit ovat div-roolipainikkeita tai ikonit svg:llä */
+      div[data-testid="stNumberInput"] div[role="button"],
+      div[data-testid="stNumberInput"] svg {
+          display: none !important;
+      }
+      /* Jos stepper-luokkia käytetään */
+      div[data-testid="stNumberInput"] .step-up,
+      div[data-testid="stNumberInput"] .step-down {
+          display: none !important;
+      }
+
       /* Vasen tasaus syöttökenttään */
       div[data-testid="stNumberInput"] input {
           text-align: left;
       }
+
       /* Kevyt taulukkutyyli */
       .tab4-table-header { font-weight: 600; padding: 4px 0; }
       .tab4-cell { padding: 2px 0; }
@@ -730,7 +748,7 @@ with tab4:
         c[2].markdown(f"<div class='tab4-cell'>{pvm}</div>", unsafe_allow_html=True)
         c[3].markdown(f"<div class='tab4-cell'>{ed}</div>", unsafe_allow_html=True)
 
-        # Syöttö: kokonaisluvut, ±-nuolet piilotettu CSS:llä
+        # Syöttö: kokonaisluvut, ±-napit piilotettu CSS:llä
         uudet = c[4].number_input(
             label="",
             min_value=0,
@@ -767,7 +785,6 @@ with tab4:
                     safe_int(r.get("Erotus", 0)),
                 ])
 
-            # Yksi tyhjennys + yksi update (minimoi write-pyynnöt)
             ws.clear()
             ws.update([header] + body)
 
@@ -803,7 +820,7 @@ with tab4:
             ('FONTSIZE',   (0,0), (-1,-1), 9),
             ('GRID',       (0,0), (-1,-1), 0.5, colors.black),
             ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
-            ('ALIGN',      (0,0), (-1,-1), 'LEFT'),  # vasen tasaus
+            ('ALIGN',      (0,0), (-1,-1), 'LEFT'),
             ('BOTTOMPADDING', (0,0), (-1,0), 6),
         ]))
 
@@ -842,6 +859,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
