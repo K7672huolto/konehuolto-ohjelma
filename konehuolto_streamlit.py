@@ -613,12 +613,12 @@ with tab3:
                 "Kone": uusi_nimi,
                 "ID": uusi_id,
                 "Ryhmä": kaytettava_ryhma,
-                "Huoltoväli_h": int(hv_h),
-                "Huoltoväli_pv": int(hv_pv),
+                "Huoltoväli_h": safe_int(hv_h),
+                "Huoltoväli_pv": safe_int(hv_pv),
             }])
             uusi_koneet_df = pd.concat([koneet_df, uusi], ignore_index=True)
             tallenna_koneet(uusi_koneet_df)
-            st.success(f"Kone **{uusi_nimi}** lisätty ryhmään **{kaytettava_ryhma}** (hv_h={int(hv_h)}, hv_pv={int(hv_pv)})")
+            st.success(f"Kone **{uusi_nimi}** lisätty ryhmään **{kaytettava_ryhma}** (hv_h={safe_int(hv_h)}, hv_pv={safe_int(hv_pv)})")
             st.rerun()
         else:
             st.warning("Täytä vähintään ryhmä, koneen nimi ja ID.")
@@ -636,18 +636,18 @@ with tab3:
 
             col_e1, col_e2, col_e3 = st.columns([0.35, 0.25, 0.4])
             with col_e1:
-                cur_h = int(rivi.get("Huoltoväli_h", 0))
+                cur_h = safe_int(rivi.get("Huoltoväli_h", 0))
                 new_h = st.number_input("Huoltoväli (tunnit)", min_value=0, step=10, value=cur_h, key="tab3_hv_h_edit")
             with col_e2:
-                cur_pv = int(rivi.get("Huoltoväli_pv", 0))
+                cur_pv = safe_int(rivi.get("Huoltoväli_pv", 0))
                 new_pv = st.number_input("Huoltoväli (päivät)", min_value=0, step=30, value=cur_pv, key="tab3_hv_pv_edit")
             with col_e3:
                 st.write(" ")
                 if st.button("💾 Tallenna huoltovälit", key="tab3_save_intervals"):
-                    koneet_df.loc[koneet_df["Kone"] == muok_kone, "Huoltoväli_h"] = int(new_h)
-                    koneet_df.loc[koneet_df["Kone"] == muok_kone, "Huoltoväli_pv"] = int(new_pv)
+                    koneet_df.loc[koneet_df["Kone"] == muok_kone, "Huoltoväli_h"] = safe_int(new_h)
+                    koneet_df.loc[koneet_df["Kone"] == muok_kone, "Huoltoväli_pv"] = safe_int(new_pv)
                     tallenna_koneet(koneet_df)
-                    st.success(f"Päivitetty: {muok_kone} → hv_h={int(new_h)}, hv_pv={int(new_pv)}")
+                    st.success(f"Päivitetty: {muok_kone} → hv_h={safe_int(new_h)}, hv_pv={safe_int(new_pv)}")
                     st.rerun()
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
@@ -686,6 +686,7 @@ with tab3:
             st.info("Ryhmässä ei koneita.")
     else:
         st.info("Ei ryhmiä.")
+
 
 
 # ----------- TAB 4: KÄYTTÖTUNNIT + HUOLTOMUISTUTUKSET -----------
@@ -956,3 +957,4 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
