@@ -845,7 +845,7 @@ with tab4:
         otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
         paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"),
                             ParagraphStyle("date", fontSize=12, alignment=2))
-        otsikko = Paragraph("Koneiden käyttötunnit ja huoltomuistutukset", otsikkotyyli)
+        otsikko = Paragraph("Koneiden käyttötunnit", otsikkotyyli)
 
         cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
                 "Huoltoväli_h","Huoltoväli_pv","Uudet tunnit","Erotus","Muistutus"]
@@ -924,6 +924,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
