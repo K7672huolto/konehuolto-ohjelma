@@ -682,11 +682,11 @@ with tab3:
 
 
 
-# ----------- TAB 4: KÄYTTÖTUNNIT + HUOLTOVÄLI MUISTUTUKSET -----------
+# ----------- TAB 4: KÄYTTÖTUNNIT + HUOLTOVÄLI MUISTUTUKSET + PDF -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset")
 
-    # CSS muotoilu
+    # CSS
     st.markdown("""
     <style>
       div[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
@@ -706,7 +706,7 @@ with tab4:
     </style>
     """, unsafe_allow_html=True)
 
-    # Lue viimeisimmät käyttötunnit
+    # --- Aputoiminnot ---
     def lue_kayttotunnit_sheet_df() -> pd.DataFrame:
         try:
             ws = get_gsheet_connection("Käyttötunnit")
@@ -772,15 +772,15 @@ with tab4:
     if "tab4_inputs" not in st.session_state:
         st.session_state.tab4_inputs = {}
 
-    # Taulukon otsikot
-    colw = [0.20, 0.10, 0.13, 0.10, 0.08, 0.08, 0.13, 0.10]  # suhteelliset leveydet
+    # Otsikkorivi
+    colw = [0.18,0.1,0.13,0.1,0.08,0.08,0.13,0.1]  
     headers = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
                "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Erotus"]
     cols = st.columns(colw, gap="small")
     for j, h in enumerate(headers):
         cols[j].markdown(f"<div class='tab4-table-header'>{h}</div>", unsafe_allow_html=True)
 
-    # Rivien piirto
+    # Rivien tulostus
     for i, r in df_tunnit.iterrows():
         c = st.columns(colw, gap="small")
         kone_n, ryhma, pvm = r["Kone"], r["Ryhmä"], r["Viimeisin huolto (pvm)"]
@@ -792,7 +792,6 @@ with tab4:
         st.session_state.tab4_inputs[state_key] = uudet
         erotus = safe_int(uudet) - ed
 
-        # Päivämuistutus
         muistutus = ""
         if hv_pv > 0 and pvm != "-":
             try:
@@ -803,7 +802,6 @@ with tab4:
             except:
                 pass
 
-        # Tulostus
         c[0].markdown(f"<div class='tab4-cell'><b>{kone_n}</b></div>", unsafe_allow_html=True)
         c[1].markdown(f"<div class='tab4-cell'>{ryhma}</div>", unsafe_allow_html=True)
         c[2].markdown(f"<div class='tab4-cell'>{pvm}</div>", unsafe_allow_html=True)
@@ -821,6 +819,7 @@ with tab4:
 
         df_tunnit.at[i,"Syötä uudet tunnit"] = safe_int(uudet)
         df_tunnit.at[i,"Erotus"] = erotus
+        df_tunnit.at[i,"Muistutus"] = muistutus
 
     # --- Tallenna ---
     if st.button("💾 Tallenna kaikkien koneiden tunnit ja muistutukset", key="tab4_save_all"):
@@ -839,6 +838,94 @@ with tab4:
             st.success("Tallennettu Käyttötunnit-välilehdelle!")
         except Exception as e:
             st.error(f"Tallennus epäonnistui: {e}")
+
+    # --- PDF ---
+    def make_pdf_bytes(df: pd.DataFrame):
+        buf = BytesIO()
+        otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
+        paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"),
+                            ParagraphStyle("date", fontSize=12, alignment=2))
+        otsikko = Paragraph("Koneiden käyttötunnit ja huoltomuistutukset", otsikkotyyli)
+
+        cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
+                "Huoltoväli_h","Huoltoväli_pv","Uudet tunnit","Erotus","Muistutus"]
+        data = [cols]
+
+        for _, r in df.iterrows():
+            k = Paragraph(f"<b>{str(r['Kone'])}</b>",
+                          ParagraphStyle(name="kb", fontName="Helvetica-Bold", fontSize=9))
+            ry = str(r["Ryhmä"])
+            pv = str(r["Viimeisin huolto (pvm)"])
+            ed = safe_int(r["Viimeisin huolto (tunnit)"])
+            hvh = safe_int(r["Huoltoväli_h"])
+            hvp = safe_int(r["Huoltoväli_pv"])
+            uu = safe_int(r.get("Syötä uudet tunnit", 0))
+            er = safe_int(r.get("Erotus", 0))
+            muistutus = str(r.get("Muistutus",""))
+
+            if hvh > 0 and er >= hvh:
+                er_cell = Paragraph(f"<font color='red'>⚠️ {er}</font>",
+                                    ParagraphStyle(name="red", fontName="Helvetica", fontSize=9))
+            else:
+                er_cell = Paragraph(str(er), ParagraphStyle(name="norm", fontName="Helvetica", fontSize=9))
+
+            muistutus_cell = Paragraph(
+                f"<font color='red'>{muistutus}</font>" if muistutus else "",
+                ParagraphStyle(name="m", fontName="Helvetica", fontSize=9)
+            )
+
+            data.append([k, ry, pv, str(ed), str(hvh), str(hvp), str(uu), er_cell, muistutus_cell])
+
+        col_widths = [120, 80, 100, 80, 70, 70, 80, 70, 120]
+        table = Table(data, repeatRows=1, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.teal),
+            ('TEXTCOLOR',  (0,0), (-1,0), colors.whitesmoke),
+            ('FONTNAME',   (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE',   (0,0), (-1,-1), 8),
+            ('GRID',       (0,0), (-1,-1), 0.5, colors.black),
+            ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN',      (0,0), (-1,-1), 'CENTER'),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+        ]))
+
+        def footer(canvas, doc):
+            canvas.saveState()
+            canvas.setFont('Helvetica', 8)
+            canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
+            canvas.restoreState()
+
+        doc = SimpleDocTemplate(
+            buf, pagesize=landscape(A4),
+            rightMargin=0.5*inch, leftMargin=0.5*inch,
+            topMargin=0.7*inch, bottomMargin=0.5*inch
+        )
+        doc.build(
+            [Spacer(1, 4*mm),
+             Table([[otsikko, paivays]], colWidths=[340, 340], style=[
+                 ("ALIGN", (0,0), (0,0), "LEFT"),
+                 ("ALIGN", (1,0), (1,0), "RIGHT"),
+                 ("VALIGN", (0,0), (-1,-1), "TOP"),
+                 ("BOTTOMPADDING", (0,0), (-1,-1), 0),
+                 ("TOPPADDING",   (0,0), (-1,-1), 0),
+             ]),
+             Spacer(1, 4*mm),
+             table],
+            onFirstPage=footer,
+            onLaterPages=footer
+        )
+        return buf.getvalue()
+
+    st.download_button(
+        "⬇️ Lataa PDF-tiedosto",
+        data=make_pdf_bytes(df_tunnit.copy()),
+        file_name="koneiden_tunnit_muistutuksilla.pdf",
+        mime="application/pdf",
+        type="secondary",
+        key="tab4_pdf_dl"
+    )
+
+
 
 
 
