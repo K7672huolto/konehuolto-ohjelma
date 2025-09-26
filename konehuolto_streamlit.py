@@ -347,11 +347,11 @@ with tab2:
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
             return pd.DataFrame(rows, columns=columns)
 
-        # --- Rivinvaihtofunktiot ---
-        import textwrap
+        # --- Rivinvaihdot ---
+        import textwrap, html
 
         def wrap_html(df, col, width=30):
-            """Käyttö Streamlit-esikatseluun (<br>)"""
+            """Esikatseluun (<br>)"""
             if col in df.columns:
                 df[col] = df[col].apply(
                     lambda x: "<br>".join(textwrap.wrap(str(x), width=width)) if str(x).strip() else ""
@@ -359,8 +359,10 @@ with tab2:
             return df
 
         def wrap_text(s, width=30):
-            """Käyttö PDF:ään (<br/>)"""
-            return "<br/>".join(textwrap.wrap(str(s), width=width)) if str(s).strip() else ""
+            """PDF:ään, escapettaa ja käyttää <br/>"""
+            s = str(s) if s is not None else ""
+            s = html.escape(s)
+            return "<br/>".join(textwrap.wrap(s, width=width)) if s.strip() else ""
 
         # --- Esikatselu ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, alkuperainen_ryhma_jarjestys, alkuperainen_koneet_df)
@@ -389,7 +391,7 @@ with tab2:
             for _, r in df_src.iterrows():
                 row = []
                 for i, c in enumerate(cols):
-                    txt = wrap_text(r.get(c, ""), 30)  # tässä <br/>
+                    txt = wrap_text(r.get(c, ""), 30)  # escapetettu + <br/>
                     if i == 0 and txt.strip():
                         row.append(Paragraph(txt, kone_bold))
                     else:
@@ -444,6 +446,7 @@ with tab2:
             type="secondary",
             key="tab2_pdf_dl"
         )
+
 
 
 
@@ -797,6 +800,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
