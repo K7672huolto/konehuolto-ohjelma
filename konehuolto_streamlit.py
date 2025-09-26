@@ -295,10 +295,11 @@ with tab2:
 
         filt = filt if valittu_kone == "Kaikki" else filt[filt["Kone"] == valittu_kone]
 
-        # --- Esikatselu ---
+        # ✔ -logiikka
         def fmt_ok(x):
             return "✔" if str(x).strip().upper() == "OK" else x
 
+        # --- Esikatselu ---
         def muodosta_esikatselu_ryhmissa(df_src, ryhmajarj, koneet_src_df):
             rows = []
             huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
@@ -360,7 +361,7 @@ with tab2:
             uusi_tunnit = st.text_input("Tunnit/km", value=valittu.get("Tunnit", ""), key="tab2_edit_tunnit")
             uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""), key="tab2_edit_pvm")
             
-            # 🔹 Monirivinen tekstilaatikko vapaa tekstille
+            # 🔹 Monirivinen tekstikenttä vapaa tekstille
             uusi_vapaa = st.text_area(
                 "Vapaa teksti",
                 value=valittu.get("Vapaa teksti", ""),
@@ -402,11 +403,7 @@ with tab2:
                 st.success("Huolto poistettu!")
                 st.rerun()
 
-
-        # --- PDF: sama rakenne kuin esikatselussa, ei ryhmäotsikoita, koneen nimi bold ---
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-
+        # --- PDF: rivitetään myös vapaa teksti ---
         def lataa_pdf_ilman_ryhmaotsikoita(df_src, ryhmajarj, koneet_src_df):
             import textwrap
             buffer = BytesIO()
@@ -431,7 +428,6 @@ with tab2:
                 topMargin=0.7 * inch, bottomMargin=0.5 * inch
             )
 
-            # Rakenna data kuten esikatselussa
             rows = []
             huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
 
@@ -454,7 +450,7 @@ with tab2:
                     for idx, row in kone_df.iterrows():
                         huolto = [str(row.get(c, "")) for c in huolto_cols]
 
-                        # 🔹 Pilkotaan "Vapaa teksti" PDF:äänkin 30 merkin välein
+                        # 🔹 Pilkotaan vapaa teksti 30 merkin välein
                         if huolto[-1]:
                             huolto[-1] = "\n".join(textwrap.wrap(huolto[-1], width=30))
 
@@ -475,7 +471,6 @@ with tab2:
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
             data = [columns]
 
-            # Muunna PDF-solut; koneen nimi bold, ✔ vihreänä
             def pdf_rivi(rivi):
                 out = []
                 for col_idx, cell in enumerate(rivi):
@@ -519,6 +514,16 @@ with tab2:
             )
             buffer.seek(0)
             return buffer
+
+        if st.button("Lataa PDF", key="lataa_pdf_tab2"):
+            pdfdata = lataa_pdf_ilman_ryhmaotsikoita(filt, alkuperainen_ryhma_jarjestys, alkuperainen_koneet_df)
+            st.download_button(
+                label="Lataa PDF-tiedosto",
+                data=pdfdata,
+                file_name="huoltohistoria.pdf",
+                mime="application/pdf"
+            )
+
 
 
 
@@ -867,6 +872,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
