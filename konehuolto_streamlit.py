@@ -460,6 +460,55 @@ with tab2:
             key="tab2_pdf_dl"
         )
 
+        # --- MUOKKAUS JA POISTO ---
+        id_valinnat = [
+            f"{row['Kone']} ({row['ID']}) {row['Päivämäärä']} (HuoltoID: {row['HuoltoID']})"
+            for _, row in filt.iterrows()
+        ]
+        valittu_id_valinta = st.selectbox("Valitse muokattava huolto", [""] + id_valinnat, key="tab2_muokkaa_id")
+
+        if valittu_id_valinta:
+            valittu_huoltoid = valittu_id_valinta.split("HuoltoID: ")[-1].replace(")", "").strip()
+            valittu = df[df["HuoltoID"].astype(str) == valittu_huoltoid].iloc[0]
+
+            uusi_tunnit = st.text_input("Tunnit/km", value=valittu.get("Tunnit", ""), key="tab2_edit_tunnit")
+            uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""), key="tab2_edit_pvm")
+            uusi_vapaa = st.text_area("Vapaa teksti", value=valittu.get("Vapaa teksti", ""), key="tab2_edit_vapaa", height=150)
+
+            uusi_kohta = {}
+            for pitkä, lyhenne in HUOLTOKOHTEET.items():
+                vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
+                arvo = str(valittu.get(lyhenne, "--")).strip().upper()
+                vaihtoehdot_upper = [v.upper() for v in vaihtoehdot]
+                if arvo not in vaihtoehdot_upper:
+                    arvo = "--"
+                uusi_kohta[lyhenne] = st.selectbox(
+                    pitkä,
+                    vaihtoehdot,
+                    index=vaihtoehdot_upper.index(arvo),
+                    key=f"tab2_edit_{lyhenne}"
+                )
+
+            col_save, col_del = st.columns(2)
+
+            if col_save.button("Tallenna muutokset", key="tab2_tallenna_muokkaa"):
+                idx = df[df["HuoltoID"].astype(str) == valittu_huoltoid].index[0]
+                df.at[idx, "Tunnit"] = uusi_tunnit
+                df.at[idx, "Päivämäärä"] = uusi_pvm
+                df.at[idx, "Vapaa teksti"] = "\n".join(textwrap.wrap(uusi_vapaa, width=30))
+                for lyhenne in uusi_kohta:
+                    df.at[idx, lyhenne] = uusi_kohta[lyhenne]
+                tallenna_huollot(df)
+                st.success("Tallennettu (Huollot)!")
+                st.rerun()
+
+            if col_del.button("Poista tämä huolto", key="tab2_poista_huolto"):
+                df = df[df["HuoltoID"].astype(str) != valittu_huoltoid]
+                tallenna_huollot(df)
+                st.success("Huolto poistettu!")
+                st.rerun()
+
+
 
 # ----------- TAB 3: KONEET JA RYHMÄT (+ HUOLTOVÄLIT) -----------
 with tab3:
@@ -805,6 +854,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
