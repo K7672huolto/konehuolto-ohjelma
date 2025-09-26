@@ -347,20 +347,24 @@ with tab2:
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
             return pd.DataFrame(rows, columns=columns)
 
-        # --- Esikatselu: rivinvaihto 30 merkin jälkeen ---
+        # --- Rivinvaihtofunktiot ---
         import textwrap
 
         def wrap_html(df, col, width=30):
+            """Käyttö Streamlit-esikatseluun (<br>)"""
             if col in df.columns:
                 df[col] = df[col].apply(
                     lambda x: "<br>".join(textwrap.wrap(str(x), width=width)) if str(x).strip() else ""
                 )
             return df
 
+        def wrap_text(s, width=30):
+            """Käyttö PDF:ään (<br/>)"""
+            return "<br/>".join(textwrap.wrap(str(s), width=width)) if str(s).strip() else ""
+
+        # --- Esikatselu ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, alkuperainen_ryhma_jarjestys, alkuperainen_koneet_df)
         df_naytto = wrap_html(df_naytto, "Vapaa teksti", width=30)
-
-        # Näytä HTML-taulukko (rivinvaihdot toimivat)
         st.markdown(df_naytto.to_html(escape=False, index=False), unsafe_allow_html=True)
 
         # --- PDF-lataus ---
@@ -380,16 +384,12 @@ with tab2:
             norm = ParagraphStyle(name="norm", parent=styles["Normal"], fontName="Helvetica", fontSize=8)
             kone_bold = ParagraphStyle(name="kone_bold", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=8)
 
-            # Wrap 30 merkkiä PDF:ään
-            def wrap_text(s, width=30):
-                return "<br/>".join(textwrap.wrap(str(s), width=width)) if str(s).strip() else ""
-
             cols = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
             data = [cols]
             for _, r in df_src.iterrows():
                 row = []
                 for i, c in enumerate(cols):
-                    txt = wrap_text(r.get(c, ""), 30)
+                    txt = wrap_text(r.get(c, ""), 30)  # tässä <br/>
                     if i == 0 and txt.strip():
                         row.append(Paragraph(txt, kone_bold))
                     else:
@@ -445,20 +445,6 @@ with tab2:
             key="tab2_pdf_dl"
         )
 
-        # --- MUOKKAUS JA POISTO ---
-        id_valinnat = [
-            f"{row['Kone']} ({row['ID']}) {row['Päivämäärä']} (HuoltoID: {row['HuoltoID']})"
-            for _, row in filt.iterrows()
-        ]
-        valittu_id_valinta = st.selectbox("Valitse muokattava huolto", [""] + id_valinnat, key="tab2_muokkaa_id")
-
-        if valittu_id_valinta:
-            valittu_huoltoid = valittu_id_valinta.split("HuoltoID: ")[-1].replace(")", "").strip()
-            valittu = df[df["HuoltoID"].astype(str) == valittu_huoltoid].iloc[0]
-
-            uusi_tunnit = st.text_input("Tunnit/km", value=valittu.get("Tunnit", ""), key="tab2_edit_tunnit")
-            uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""), key="tab2_edit_pvm")
-            uusi_vapaa = st.text_area("Vapaa teksti", value=valittu.get("Vapaa teksti", ""), key="tab2_edit_vapaa", height=150)
 
 
 
@@ -811,6 +797,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
