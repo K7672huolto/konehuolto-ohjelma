@@ -345,8 +345,18 @@ with tab2:
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
             return pd.DataFrame(rows, columns=columns)
 
+        # --- Funktio rivinvaihtoihin ---
+        import textwrap
+        def wrap_teksti_df(df, col, width=30):
+            if col in df.columns:
+                df[col] = df[col].apply(
+                    lambda x: "\n".join(textwrap.wrap(str(x), width=width)) if x else ""
+                )
+            return df
+
         # --- Näytä taulukko rivinvaihtoineen ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, alkuperainen_ryhma_jarjestys, alkuperainen_koneet_df)
+        df_naytto = wrap_teksti_df(df_naytto, "Vapaa teksti", width=30)
         st.table(df_naytto)
 
         # --- MUOKKAUS JA POISTO ---
@@ -381,7 +391,6 @@ with tab2:
             col_save, col_del = st.columns(2)
 
             if col_save.button("Tallenna muutokset", key="tab2_tallenna_muokkaa"):
-                import textwrap
                 idx = df[df["HuoltoID"].astype(str) == valittu_huoltoid].index[0]
                 df.at[idx, "Tunnit"] = uusi_tunnit
                 df.at[idx, "Päivämäärä"] = uusi_pvm
@@ -389,7 +398,7 @@ with tab2:
                 for lyhenne in uusi_kohta:
                     df.at[idx, lyhenne] = uusi_kohta[lyhenne]
                 tallenna_huollot(df)
-                st.success("Tallennettu (Huollot + Käyttötunnit)!")  
+                st.success("Tallennettu (Huollot + Käyttötunnit)!")
                 st.rerun()
 
             if col_del.button("Poista tämä huolto", key="tab2_poista_huolto"):
@@ -468,7 +477,6 @@ with tab2:
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
             data = [columns]
 
-            # Muunna PDF-solut
             def pdf_rivi(rivi):
                 out = []
                 for col_idx, cell in enumerate(rivi):
@@ -522,6 +530,7 @@ with tab2:
                 file_name="huoltohistoria.pdf",
                 mime="application/pdf"
             )
+
 
 
 
@@ -872,6 +881,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
