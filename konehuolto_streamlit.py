@@ -284,6 +284,7 @@ with tab2:
         alkuperainen_koneet_df = koneet_df.copy()
         df = huolto_df.copy().reset_index(drop=True)
 
+        # --- Varmista sarakkeet ---
         if "Ryhmä" not in df.columns:
             df["Ryhmä"] = ""
         if "Kone" not in df.columns:
@@ -365,8 +366,19 @@ with tab2:
             parts = textwrap.wrap(s, width=width)
             return "<br/>".join(html.escape(p) for p in parts if p.strip())
 
+        # --- Käyttäjän valinnat huomioon ---
+        if valittu_ryhma == "Kaikki":
+            ryhmajarj = alkuperainen_ryhma_jarjestys
+            koneet_df_esikatselu = alkuperainen_koneet_df.copy()
+        else:
+            ryhmajarj = [valittu_ryhma]
+            koneet_df_esikatselu = alkuperainen_koneet_df[alkuperainen_koneet_df["Ryhmä"] == valittu_ryhma].copy()
+
+        if valittu_kone != "Kaikki":
+            koneet_df_esikatselu = koneet_df_esikatselu[koneet_df_esikatselu["Kone"] == valittu_kone].copy()
+
         # --- Esikatselu ---
-        df_naytto = muodosta_esikatselu_ryhmissa(filt, alkuperainen_ryhma_jarjestys, alkuperainen_koneet_df)
+        df_naytto = muodosta_esikatselu_ryhmissa(filt, ryhmajarj, koneet_df_esikatselu)
         df_naytto = wrap_html(df_naytto, "Vapaa teksti", width=30)
         st.markdown(df_naytto.to_html(escape=False, index=False), unsafe_allow_html=True)
 
@@ -447,6 +459,7 @@ with tab2:
             type="secondary",
             key="tab2_pdf_dl"
         )
+
 
 # ----------- TAB 3: KONEET JA RYHMÄT (+ HUOLTOVÄLIT) -----------
 with tab3:
@@ -792,6 +805,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
