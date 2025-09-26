@@ -274,8 +274,6 @@ with tab2:
     if huolto_df.empty:
         st.info("Ei huoltoja tallennettu vielä.")
     else:
-        import textwrap
-
         # --- Pohjadatat ---
         alkuperainen_ryhma_jarjestys = (
             koneet_df["Ryhmä"].drop_duplicates().tolist()
@@ -285,12 +283,18 @@ with tab2:
         alkuperainen_koneet_df = koneet_df.copy()
         df = huolto_df.copy().reset_index(drop=True)
 
+        # --- Varmista sarakkeet ---
+        if "Ryhmä" not in df.columns:
+            df["Ryhmä"] = ""
+        if "Kone" not in df.columns:
+            df["Kone"] = ""
+
         # --- Suodatus UI ---
-        ryhmat = ["Kaikki"] + sorted(df["Ryhmä"].unique())
+        ryhmat = ["Kaikki"] + sorted([r for r in df["Ryhmä"].unique() if r])
         valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ryhmat, key="tab2_ryhma")
 
         filt = df if valittu_ryhma == "Kaikki" else df[df["Ryhmä"] == valittu_ryhma]
-        koneet = ["Kaikki"] + sorted(filt["Kone"].unique())
+        koneet = ["Kaikki"] + sorted([k for k in filt["Kone"].unique() if k])
         valittu_kone = st.selectbox("Suodata koneen mukaan", koneet, key="tab2_kone")
 
         filt = filt if valittu_kone == "Kaikki" else filt[filt["Kone"] == valittu_kone]
@@ -299,7 +303,7 @@ with tab2:
         def fmt_ok(x):
             return "✔" if str(x).strip().upper() == "OK" else x
 
-        # --- Esikatselu ---
+        # --- Esikatselu muodostus ---
         def muodosta_esikatselu_ryhmissa(df_src, ryhmajarj, koneet_src_df):
             rows = []
             huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
@@ -320,20 +324,17 @@ with tab2:
 
                     id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
 
-                    huolto1 = [str(kone_df.iloc[0].get(col, "")) for col in huolto_cols]
-                    huolto1 = [fmt_ok(val) for val in huolto1]
+                    huolto1 = [fmt_ok(kone_df.iloc[0].get(c, "")) for c in huolto_cols]
                     rows.append([kone, ryhma] + huolto1)
 
                     if len(kone_df) > 1:
-                        huolto2 = [str(kone_df.iloc[1].get(col, "")) for col in huolto_cols]
-                        huolto2 = [fmt_ok(val) for val in huolto2]
+                        huolto2 = [fmt_ok(kone_df.iloc[1].get(c, "")) for c in huolto_cols]
                         rows.append([id_, ""] + huolto2)
                     else:
                         rows.append([id_, ""] + [""] * len(huolto1))
 
                     for i in range(2, len(kone_df)):
-                        huoltoN = [str(kone_df.iloc[i].get(col, "")) for col in huolto_cols]
-                        huoltoN = [fmt_ok(val) for val in huoltoN]
+                        huoltoN = [fmt_ok(kone_df.iloc[i].get(c, "")) for c in huolto_cols]
                         rows.append(["", ""] + huoltoN)
 
                     rows.append([""] * (2 + len(huolto1)))
@@ -344,8 +345,9 @@ with tab2:
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
             return pd.DataFrame(rows, columns=columns)
 
+        # --- Näytä taulukko rivinvaihtoineen ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, alkuperainen_ryhma_jarjestys, alkuperainen_koneet_df)
-        st.dataframe(df_naytto, hide_index=True, use_container_width=True)
+        st.table(df_naytto)
 
         # --- MUOKKAUS JA POISTO ---
         id_valinnat = [
@@ -360,14 +362,7 @@ with tab2:
 
             uusi_tunnit = st.text_input("Tunnit/km", value=valittu.get("Tunnit", ""), key="tab2_edit_tunnit")
             uusi_pvm = st.text_input("Päivämäärä", value=valittu.get("Päivämäärä", ""), key="tab2_edit_pvm")
-            
-            # 🔹 Monirivinen tekstikenttä vapaa tekstille
-            uusi_vapaa = st.text_area(
-                "Vapaa teksti",
-                value=valittu.get("Vapaa teksti", ""),
-                key="tab2_edit_vapaa",
-                height=150
-            )
+            uusi_vapaa = st.text_area("Vapaa teksti", value=valittu.get("Vapaa teksti", ""), key="tab2_edit_vapaa", height=150)
 
             uusi_kohta = {}
             for pitkä, lyhenne in HUOLTOKOHTEET.items():
@@ -386,15 +381,15 @@ with tab2:
             col_save, col_del = st.columns(2)
 
             if col_save.button("Tallenna muutokset", key="tab2_tallenna_muokkaa"):
+                import textwrap
                 idx = df[df["HuoltoID"].astype(str) == valittu_huoltoid].index[0]
                 df.at[idx, "Tunnit"] = uusi_tunnit
                 df.at[idx, "Päivämäärä"] = uusi_pvm
-                # 🔹 Pilkotaan 30 merkin välein
                 df.at[idx, "Vapaa teksti"] = "\n".join(textwrap.wrap(uusi_vapaa, width=30))
                 for lyhenne in uusi_kohta:
                     df.at[idx, lyhenne] = uusi_kohta[lyhenne]
                 tallenna_huollot(df)
-                st.success("Tallennettu (Huollot + Käyttötunnit)!")
+                st.success("Tallennettu (Huollot + Käyttötunnit)!")  
                 st.rerun()
 
             if col_del.button("Poista tämä huolto", key="tab2_poista_huolto"):
@@ -403,9 +398,10 @@ with tab2:
                 st.success("Huolto poistettu!")
                 st.rerun()
 
-        # --- PDF: rivitetään myös vapaa teksti ---
+        # --- PDF ---
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+
         def lataa_pdf_ilman_ryhmaotsikoita(df_src, ryhmajarj, koneet_src_df):
-            import textwrap
             buffer = BytesIO()
             vihrea = ParagraphStyle(name="vihrea", textColor=colors.green, fontName="Helvetica-Bold", fontSize=8)
             otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
@@ -428,6 +424,7 @@ with tab2:
                 topMargin=0.7 * inch, bottomMargin=0.5 * inch
             )
 
+            # Rakenna data kuten esikatselussa
             rows = []
             huolto_cols = ["Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
 
@@ -447,23 +444,23 @@ with tab2:
 
                     id_ = kone_df["ID"].iloc[0] if "ID" in kone_df.columns else ""
 
-                    for idx, row in kone_df.iterrows():
-                        huolto = [str(row.get(c, "")) for c in huolto_cols]
+                    huolto1 = [str(kone_df.iloc[0].get(c, "")) for c in huolto_cols]
+                    huolto1 = ["✔" if str(v).strip().upper() == "OK" else v for v in huolto1]
+                    rows.append([kone, ryhma] + huolto1)
 
-                        # 🔹 Pilkotaan vapaa teksti 30 merkin välein
-                        if huolto[-1]:
-                            huolto[-1] = "\n".join(textwrap.wrap(huolto[-1], width=30))
+                    if len(kone_df) > 1:
+                        huolto2 = [str(kone_df.iloc[1].get(c, "")) for c in huolto_cols]
+                        huolto2 = ["✔" if str(v).strip().upper() == "OK" else v for v in huolto2]
+                        rows.append([id_, ""] + huolto2)
+                    else:
+                        rows.append([id_, ""] + [""] * len(huolto1))
 
-                        huolto = ["✔" if str(v).strip().upper() == "OK" else v for v in huolto]
+                    for i in range(2, len(kone_df)):
+                        huoltoN = [str(kone_df.iloc[i].get(c, "")) for c in huolto_cols]
+                        huoltoN = ["✔" if str(v).strip().upper() == "OK" else v for v in huoltoN]
+                        rows.append(["", ""] + huoltoN)
 
-                        if idx == kone_df.index[0]:
-                            rows.append([kone, ryhma] + huolto)
-                        elif idx == kone_df.index[1]:
-                            rows.append([id_, ""] + huolto)
-                        else:
-                            rows.append(["", ""] + huolto)
-
-                    rows.append([""] * (2 + len(huolto)))
+                    rows.append([""] * (2 + len(huolto1)))
 
             if rows and all(cell == "" for cell in rows[-1]):
                 rows.pop()
@@ -471,6 +468,7 @@ with tab2:
             columns = ["Kone", "Ryhmä", "Tunnit", "Päivämäärä"] + LYHENTEET + ["Vapaa teksti"]
             data = [columns]
 
+            # Muunna PDF-solut
             def pdf_rivi(rivi):
                 out = []
                 for col_idx, cell in enumerate(rivi):
@@ -515,6 +513,7 @@ with tab2:
             buffer.seek(0)
             return buffer
 
+        # Näppäin + lataus
         if st.button("Lataa PDF", key="lataa_pdf_tab2"):
             pdfdata = lataa_pdf_ilman_ryhmaotsikoita(filt, alkuperainen_ryhma_jarjestys, alkuperainen_koneet_df)
             st.download_button(
@@ -523,6 +522,7 @@ with tab2:
                 file_name="huoltohistoria.pdf",
                 mime="application/pdf"
             )
+
 
 
 
@@ -872,6 +872,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
