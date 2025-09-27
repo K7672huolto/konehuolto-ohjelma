@@ -186,49 +186,28 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # ----------- TAB 1: LISÄÄ HUOLTO -----------
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
-
     ryhmat_lista = sorted(list(koneet_data.keys()))
     if not ryhmat_lista:
         st.info("Ei yhtään koneryhmää vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
     else:
         valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="tab1_ryhma_select")
-        koneet_ryhmaan = koneet_data.get(valittu_ryhma, [])
-
-        kone_id = ""
-        kone_valinta = ""
-
+        koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            koneet_lista = koneet_df2["Kone"].dropna().tolist()
-
-            # Jos sessiossa ei ole valintaa, otetaan ensimmäinen kone
-            if "tab1_konevalinta" not in st.session_state and koneet_lista:
-                st.session_state.tab1_konevalinta = koneet_lista[0]
-
-            st.markdown("**Valitse kone:**")
-
-            col_count = 5   # montako nappia rinnakkain
-            cols = st.columns(col_count)
-
-            for i, kone in enumerate(koneet_lista):
-                with cols[i % col_count]:
-                    if st.button(
-                        kone,
-                        key=f"btn_{valittu_ryhma}_{i}",  # 👈 uniikki key
-                        type="primary" if st.session_state.get("tab1_konevalinta", "") == kone else "secondary"
-                    ):
-                        st.session_state.tab1_konevalinta = kone
-
-            kone_valinta = st.session_state.get("tab1_konevalinta", "")
-            valittu_df = koneet_df2[koneet_df2["Kone"] == kone_valinta]
-
-            if not valittu_df.empty:
-                kone_id = valittu_df["ID"].values[0]
-
+            kone_valinta = st.radio(
+                "Valitse kone:",
+                koneet_df2["Kone"].tolist(),
+                key="tab1_konevalinta_radio",
+                index=0 if len(koneet_df2) > 0 else None
+            )
+            kone_id = koneet_df2[koneet_df2["Kone"] == kone_valinta]["ID"].values[0]
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
+            kone_id = ""
+            kone_valinta = ""
 
         if kone_id:
+            # clear_on_submit tyhjentää kentät automaattisesti tallennuksen jälkeen
             with st.form(key="huolto_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
@@ -249,20 +228,22 @@ with tab1:
                 for i, pitkä in enumerate(HUOLTOKOHTEET):
                     with cols_huolto[i % 6]:
                         valinnat[HUOLTOKOHTEET[pitkä]] = st.selectbox(
-                            f"{pitkä}:",
-                            vaihtoehdot,
+                            f"{pitkä}:", vaihtoehdot,
                             key=f"form_valinta_{pitkä}",
                             index=0
                         )
 
-                # Monirivinen vapaa teksti
-                vapaa = st.text_area("Vapaa teksti", key="form_vapaa")
+                # ✅ Monirivinen tekstikenttä
+                vapaa = st.text_area("Vapaa teksti", key="form_vapaa", height=150)
 
                 submit = st.form_submit_button("Tallenna huolto")
                 if submit:
                     if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
                         st.warning("Täytä kaikki kentät!")
                     else:
+                        import textwrap
+                        vapaa_muokattu = "\n".join(textwrap.wrap(vapaa, width=30))
+
                         uusi = {
                             "HuoltoID": str(uuid.uuid4())[:8],
                             "Kone": kone_valinta,
@@ -270,7 +251,7 @@ with tab1:
                             "Ryhmä": valittu_ryhma,
                             "Tunnit": kayttotunnit,
                             "Päivämäärä": pvm.strftime("%d.%m.%Y"),
-                            "Vapaa teksti": vapaa,
+                            "Vapaa teksti": vapaa_muokattu,
                         }
                         for lyhenne in LYHENTEET:
                             uusi[lyhenne] = valinnat[lyhenne]
@@ -281,9 +262,10 @@ with tab1:
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
-                            st.rerun()
+                            st.rerun()  # Lataa sivun uudelleen
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
@@ -528,6 +510,7 @@ with tab2:
                 tallenna_huollot(df)
                 st.success("Huolto poistettu!")
                 st.rerun()
+
 
 
 
@@ -875,6 +858,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
