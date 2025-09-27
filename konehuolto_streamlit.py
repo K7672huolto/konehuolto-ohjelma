@@ -278,34 +278,25 @@ with tab2:
     if huolto_df.empty:
         st.info("Ei huoltoja tallennettu vielä.")
     else:
-        # --- Pohjadatat ---
-        alkuperainen_ryhma_jarjestys = (
-            koneet_df["Ryhmä"].drop_duplicates().tolist()
-            if not koneet_df.empty
-            else sorted(huolto_df["Ryhmä"].unique())
-        )
-        alkuperainen_koneet_df = koneet_df.copy()
         df = huolto_df.copy().reset_index(drop=True)
 
-        # --- Suodatus UI ---
+        # --- Suodatus: ryhmä ja kone ---
         ryhmat = ["Kaikki"] + sorted(df["Ryhmä"].unique())
         valittu_ryhma = st.selectbox("Suodata ryhmän mukaan", ryhmat, key="tab2_ryhma")
-
         filt = df if valittu_ryhma == "Kaikki" else df[df["Ryhmä"] == valittu_ryhma]
+
         koneet = ["Kaikki"] + sorted(filt["Kone"].unique())
         valittu_kone = st.selectbox("Suodata koneen mukaan", koneet, key="tab2_kone")
-
         filt = filt if valittu_kone == "Kaikki" else filt[filt["Kone"] == valittu_kone]
 
-        # --- Tekstin rivinvaihto apuri ---
+        # --- Apuri rivinvaihtoon ---
         def wrap_text(s: str, width: int = 30) -> str:
-            if not isinstance(s, str):
-                s = str(s)
+            s = str(s) if s is not None else ""
             return "\n".join([s[i:i+width] for i in range(0, len(s), width)])
 
-        # --- Esikatselu ---
+        # --- Esikatselu DataFrame ---
         df_naytto = filt.copy()
-        if not df_naytto.empty and "Vapaa teksti" in df_naytto.columns:
+        if "Vapaa teksti" in df_naytto.columns:
             df_naytto["Vapaa teksti"] = df_naytto["Vapaa teksti"].apply(lambda x: wrap_text(str(x), 30))
 
         st.dataframe(
@@ -338,14 +329,13 @@ with tab2:
             uusi_kohta = {}
             for pitkä, lyhenne in HUOLTOKOHTEET.items():
                 vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
-                arvo = str(valittu.get(lyhenne, "--")).strip().upper()
-                vaihtoehdot_upper = [v.upper() for v in vaihtoehdot]
-                if arvo not in vaihtoehdot_upper:
+                arvo = str(valittu.get(lyhenne, "--")).strip()
+                if arvo not in vaihtoehdot:
                     arvo = "--"
                 uusi_kohta[lyhenne] = st.selectbox(
                     pitkä,
                     vaihtoehdot,
-                    index=vaihtoehdot_upper.index(arvo),
+                    index=vaihtoehdot.index(arvo),
                     key=f"tab2_edit_{lyhenne}"
                 )
 
@@ -370,12 +360,13 @@ with tab2:
 
         # --- PDF-lataus ---
         from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.styles import ParagraphStyle
 
         def make_pdf_bytes(df_src: pd.DataFrame):
             buf = BytesIO()
             otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
             norm = ParagraphStyle(name="norm", fontName="Helvetica", fontSize=8)
+
             paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
             otsikko = Paragraph("Huoltohistoria", otsikkotyyli)
 
@@ -760,6 +751,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
