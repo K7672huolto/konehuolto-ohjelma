@@ -416,7 +416,7 @@ with tab2:
                         row.append(Paragraph(txt, norm))
                 data.append(row)
 
-            col_widths = [100, 90, 55, 60] + [30 for _ in LYHENTEET] + [140]
+            col_widths = [120, 90, 40, 60] + [30 for _ in LYHENTEET] + [140]
             table = Table(data, repeatRows=1, colWidths=col_widths)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.teal),
@@ -862,6 +862,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
