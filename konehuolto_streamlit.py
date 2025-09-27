@@ -190,9 +190,9 @@ with tab1:
     # CSS: pienempi riviväli radio-napeille
     st.markdown("""
     <style>
-    div[role="radiogroup"] > label {
-        padding-bottom: 2px;
-        margin-bottom: 2px;
+    div[role="radiogroup"] div[role="radio"] {
+        margin-bottom: 2px !important;   /* väli radio-nappien välissä */
+        padding-bottom: 0px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -209,9 +209,12 @@ with tab1:
             koneet_lista = koneet_df2["Kone"].tolist()
 
             # Muuttuja valinnan tallentamiseen
-            valittu_kone = st.session_state.get("tab1_konevalinta_radio", koneet_lista[0] if koneet_lista else "")
+            valittu_kone = st.session_state.get(
+                "tab1_konevalinta_radio",
+                koneet_lista[0] if koneet_lista else ""
+            )
 
-            # Montako saraketta rinnakkain
+            # Montako saraketta rinnakkain (voit säätää esim. 4 tai 5)
             col_count = 5
             cols = st.columns(col_count)
 
@@ -290,10 +293,7 @@ with tab1:
                             st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
-
-
-
-
+                            
 
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
 with tab2:
@@ -881,6 +881,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
