@@ -382,6 +382,12 @@ with tab2:
         df_naytto = muodosta_esikatselu_ryhmissa(filt, ryhmajarj, koneet_df_esikatselu)
         df_naytto = wrap_html(df_naytto, "Vapaa teksti", width=40)
 
+        # Boldaa koneen nimi
+        if "Kone" in df_naytto.columns:
+            df_naytto["Kone"] = df_naytto["Kone"].apply(
+                lambda x: f"<b>{x}</b>" if str(x).strip() else ""
+            )
+
         st.markdown("""
         <style>
             th { text-align: left !important; }
@@ -866,6 +872,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
