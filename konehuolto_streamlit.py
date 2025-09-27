@@ -187,6 +187,16 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
 
+    # CSS: pienempi riviväli radio-napeille
+    st.markdown("""
+    <style>
+    div[role="radiogroup"] > label {
+        padding-bottom: 2px;
+        margin-bottom: 2px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     ryhmat_lista = sorted(list(koneet_data.keys()))
     if not ryhmat_lista:
         st.info("Ei yhtään koneryhmää vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
@@ -201,15 +211,14 @@ with tab1:
             # Muuttuja valinnan tallentamiseen
             valittu_kone = st.session_state.get("tab1_konevalinta_radio", koneet_lista[0] if koneet_lista else "")
 
-            # Montako saraketta haluat rinnakkain?
+            # Montako saraketta rinnakkain
             col_count = 5
             cols = st.columns(col_count)
 
-            # Näytetään koneet radiopainikkeina useassa sarakkeessa
             for i, kone in enumerate(koneet_lista):
                 with cols[i % col_count]:
                     if st.radio(
-                        label="",
+                        label="",  # ei otsikkoa
                         options=[kone],
                         key=f"tab1_radio_{i}",
                         index=0
@@ -252,7 +261,8 @@ with tab1:
                             index=0
                         )
 
-                vapaa = st.text_area("Vapaa teksti", key="form_vapaa")  # text_area tukee monirivistä syöttöä
+                # Monirivinen vapaa teksti
+                vapaa = st.text_area("Vapaa teksti", key="form_vapaa")
 
                 submit = st.form_submit_button("Tallenna huolto")
                 if submit:
@@ -280,6 +290,7 @@ with tab1:
                             st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
@@ -870,6 +881,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
