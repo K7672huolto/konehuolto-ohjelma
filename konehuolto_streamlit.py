@@ -382,7 +382,7 @@ with tab2:
 
         # --- Esikatselu ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, ryhmajarj, koneet_df_esikatselu)
-        df_naytto = wrap_html(df_naytto, "Vapaa teksti", width=30)
+        df_naytto = wrap_html(df_naytto, "Vapaa teksti", width=40)
         st.markdown(df_naytto.to_html(escape=False, index=False), unsafe_allow_html=True)
 
         # --- PDF-lataus ---
@@ -859,6 +859,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
