@@ -186,28 +186,46 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # ----------- TAB 1: LISÄÄ HUOLTO -----------
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
+
     ryhmat_lista = sorted(list(koneet_data.keys()))
     if not ryhmat_lista:
         st.info("Ei yhtään koneryhmää vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
     else:
         valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="tab1_ryhma_select")
         koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
+
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            kone_valinta = st.radio(
-                "Valitse kone:",
-                koneet_df2["Kone"].tolist(),
-                key="tab1_konevalinta_radio",
-                index=0 if len(koneet_df2) > 0 else None
-            )
+            koneet_lista = koneet_df2["Kone"].tolist()
+
+            # Muuttuja valinnan tallentamiseen
+            valittu_kone = st.session_state.get("tab1_konevalinta_radio", koneet_lista[0] if koneet_lista else "")
+
+            # Montako saraketta haluat rinnakkain?
+            col_count = 5
+            cols = st.columns(col_count)
+
+            # Näytetään koneet radiopainikkeina useassa sarakkeessa
+            for i, kone in enumerate(koneet_lista):
+                with cols[i % col_count]:
+                    if st.radio(
+                        label="",
+                        options=[kone],
+                        key=f"tab1_radio_{i}",
+                        index=0
+                    ):
+                        valittu_kone = kone
+                        st.session_state.tab1_konevalinta_radio = kone
+
+            kone_valinta = valittu_kone
             kone_id = koneet_df2[koneet_df2["Kone"] == kone_valinta]["ID"].values[0]
+
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
             kone_id = ""
             kone_valinta = ""
 
         if kone_id:
-            # clear_on_submit tyhjentää kentät automaattisesti tallennuksen jälkeen
             with st.form(key="huolto_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
@@ -228,22 +246,19 @@ with tab1:
                 for i, pitkä in enumerate(HUOLTOKOHTEET):
                     with cols_huolto[i % 6]:
                         valinnat[HUOLTOKOHTEET[pitkä]] = st.selectbox(
-                            f"{pitkä}:", vaihtoehdot,
+                            f"{pitkä}:",
+                            vaihtoehdot,
                             key=f"form_valinta_{pitkä}",
                             index=0
                         )
 
-                # ✅ Monirivinen tekstikenttä
-                vapaa = st.text_area("Vapaa teksti", key="form_vapaa", height=150)
+                vapaa = st.text_area("Vapaa teksti", key="form_vapaa")  # text_area tukee monirivistä syöttöä
 
                 submit = st.form_submit_button("Tallenna huolto")
                 if submit:
                     if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
                         st.warning("Täytä kaikki kentät!")
                     else:
-                        import textwrap
-                        vapaa_muokattu = "\n".join(textwrap.wrap(vapaa, width=30))
-
                         uusi = {
                             "HuoltoID": str(uuid.uuid4())[:8],
                             "Kone": kone_valinta,
@@ -251,7 +266,7 @@ with tab1:
                             "Ryhmä": valittu_ryhma,
                             "Tunnit": kayttotunnit,
                             "Päivämäärä": pvm.strftime("%d.%m.%Y"),
-                            "Vapaa teksti": vapaa_muokattu,
+                            "Vapaa teksti": vapaa,
                         }
                         for lyhenne in LYHENTEET:
                             uusi[lyhenne] = valinnat[lyhenne]
@@ -262,9 +277,10 @@ with tab1:
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
-                            st.rerun()  # Lataa sivun uudelleen
+                            st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
 
 
 
@@ -854,6 +870,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
