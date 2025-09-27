@@ -407,7 +407,7 @@ with tab2:
             for _, r in df_src.iterrows():
                 row = []
                 for i, c in enumerate(cols):
-                    txt = wrap_text(r.get(c, ""), 30)  # escapetettu + <br/>
+                    txt = wrap_text(r.get(c, ""), 40)  # escapetettu + <br/>
                     if i == 0 and txt.strip():
                         row.append(Paragraph(txt, kone_bold))
                     else:
@@ -859,6 +859,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
