@@ -354,7 +354,6 @@ with tab2:
         import textwrap, html
 
         def wrap_html(df, col, width=30):
-            """Esikatseluun (Streamlit), käyttää <br>."""
             if col in df.columns:
                 df[col] = df[col].apply(
                     lambda x: "<br>".join(textwrap.wrap(str(x), width=width)) if str(x).strip() else ""
@@ -362,14 +361,13 @@ with tab2:
             return df
 
         def wrap_text(s, width=30):
-            """PDF:ään, escapettaa ja käyttää <br/>."""
             if s is None:
                 return ""
             s = str(s)
             parts = textwrap.wrap(s, width=width)
             return "<br/>".join(html.escape(p) for p in parts if p.strip())
 
-        # --- Käyttäjän valinnat huomioon ---
+        # --- Käyttäjän valinnat ---
         if valittu_ryhma == "Kaikki":
             ryhmajarj = alkuperainen_ryhma_jarjestys
             koneet_df_esikatselu = alkuperainen_koneet_df.copy()
@@ -380,9 +378,17 @@ with tab2:
         if valittu_kone != "Kaikki":
             koneet_df_esikatselu = koneet_df_esikatselu[koneet_df_esikatselu["Kone"] == valittu_kone].copy()
 
-        # --- Esikatselu ---
+        # --- Esikatselu otsikot vasemmalle ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, ryhmajarj, koneet_df_esikatselu)
-        df_naytto = wrap_html(df_naytto, "Vapaa teksti", width=40)
+        df_naytto = wrap_html(df_naytto, "Vapaa teksti", width=30)
+
+        st.markdown("""
+        <style>
+            th { text-align: left !important; }
+            td { vertical-align: top; }
+        </style>
+        """, unsafe_allow_html=True)
+
         st.markdown(df_naytto.to_html(escape=False, index=False), unsafe_allow_html=True)
 
         # --- PDF-lataus ---
@@ -407,7 +413,7 @@ with tab2:
             for _, r in df_src.iterrows():
                 row = []
                 for i, c in enumerate(cols):
-                    txt = wrap_text(r.get(c, ""), 40)  # escapetettu + <br/>
+                    txt = wrap_text(r.get(c, ""), 30)
                     if i == 0 and txt.strip():
                         row.append(Paragraph(txt, kone_bold))
                     else:
@@ -423,8 +429,8 @@ with tab2:
                 ('FONTSIZE', (0,0), (-1,-1), 8),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.black),
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-                ('BOTTOMPADDING', (0,0), (-1,0), 6),
+                ('ALIGN', (0,0), (-1,0), 'LEFT'),   # otsikot vasemmalle
+                ('ALIGN', (0,1), (-1,-1), 'CENTER')
             ]))
 
             def footer(canvas, doc):
@@ -510,6 +516,7 @@ with tab2:
                 tallenna_huollot(df)
                 st.success("Huolto poistettu!")
                 st.rerun()
+
 
 
 
@@ -859,6 +866,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
