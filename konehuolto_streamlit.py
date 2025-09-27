@@ -265,10 +265,6 @@ with tab1:
                             st.rerun()  # Lataa sivun uudelleen
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
-
-
-
-
                             
 
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
@@ -381,12 +377,6 @@ with tab2:
         # --- Esikatselu otsikot vasemmalle ---
         df_naytto = muodosta_esikatselu_ryhmissa(filt, ryhmajarj, koneet_df_esikatselu)
         df_naytto = wrap_html(df_naytto, "Vapaa teksti", width=40)
-
-        # Boldaa koneen nimi
-        if "Kone" in df_naytto.columns:
-            df_naytto["Kone"] = df_naytto["Kone"].apply(
-                lambda x: f"<b>{x}</b>" if str(x).strip() else ""
-            )
 
         st.markdown("""
         <style>
@@ -872,6 +862,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
