@@ -198,7 +198,7 @@ with tab1:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
             koneet_lista = koneet_df2["Kone"].tolist()
 
-            # Valinta sessioon
+            # Tallennetaan valinta sessioon
             if "tab1_konevalinta" not in st.session_state:
                 st.session_state.tab1_konevalinta = koneet_lista[0] if koneet_lista else ""
 
@@ -211,7 +211,7 @@ with tab1:
                 with cols[i % col_count]:
                     if st.button(
                         kone,
-                        key=f"btn_{kone}",
+                        key=f"btn_{i}_{kone}",  # 👈 uniikki key: indeksi + nimi
                         type="primary" if st.session_state.tab1_konevalinta == kone else "secondary"
                     ):
                         st.session_state.tab1_konevalinta = kone
@@ -280,6 +280,7 @@ with tab1:
                             st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
 
                             
 
@@ -869,6 +870,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
