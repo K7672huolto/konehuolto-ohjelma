@@ -192,15 +192,18 @@ with tab1:
         st.info("Ei yhtään koneryhmää vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
     else:
         valittu_ryhma = st.selectbox("Ryhmä", ryhmat_lista, key="tab1_ryhma_select")
-        koneet_ryhmaan = koneet_data[valittu_ryhma] if valittu_ryhma else []
+        koneet_ryhmaan = koneet_data.get(valittu_ryhma, [])
+
+        kone_id = ""
+        kone_valinta = ""
 
         if koneet_ryhmaan:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
-            koneet_lista = koneet_df2["Kone"].tolist()
+            koneet_lista = koneet_df2["Kone"].dropna().tolist()
 
-            # Tallennetaan valinta sessioon
-            if "tab1_konevalinta" not in st.session_state:
-                st.session_state.tab1_konevalinta = koneet_lista[0] if koneet_lista else ""
+            # Jos sessiossa ei ole valintaa, otetaan ensimmäinen kone
+            if "tab1_konevalinta" not in st.session_state and koneet_lista:
+                st.session_state.tab1_konevalinta = koneet_lista[0]
 
             st.markdown("**Valitse kone:**")
 
@@ -211,18 +214,19 @@ with tab1:
                 with cols[i % col_count]:
                     if st.button(
                         kone,
-                        key=f"btn_{i}_{kone}",  # 👈 uniikki key: indeksi + nimi
-                        type="primary" if st.session_state.tab1_konevalinta == kone else "secondary"
+                        key=f"btn_{valittu_ryhma}_{i}",  # 👈 uniikki key
+                        type="primary" if st.session_state.get("tab1_konevalinta", "") == kone else "secondary"
                     ):
                         st.session_state.tab1_konevalinta = kone
 
-            kone_valinta = st.session_state.tab1_konevalinta
-            kone_id = koneet_df2[koneet_df2["Kone"] == kone_valinta]["ID"].values[0]
+            kone_valinta = st.session_state.get("tab1_konevalinta", "")
+            valittu_df = koneet_df2[koneet_df2["Kone"] == kone_valinta]
+
+            if not valittu_df.empty:
+                kone_id = valittu_df["ID"].values[0]
 
         else:
             st.info("Valitussa ryhmässä ei ole koneita.")
-            kone_id = ""
-            kone_valinta = ""
 
         if kone_id:
             with st.form(key="huolto_form", clear_on_submit=True):
@@ -280,6 +284,7 @@ with tab1:
                             st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
 
 
                             
@@ -870,6 +875,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
