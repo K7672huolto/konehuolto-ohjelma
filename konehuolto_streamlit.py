@@ -187,16 +187,6 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     st.header("Lisää uusi huoltotapahtuma")
 
-    # CSS: pienempi riviväli radio-napeille
-    st.markdown("""
-    <style>
-    div[role="radiogroup"] div[role="radio"] {
-        margin-bottom: 2px !important;   /* väli radio-nappien välissä */
-        padding-bottom: 0px !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
     ryhmat_lista = sorted(list(koneet_data.keys()))
     if not ryhmat_lista:
         st.info("Ei yhtään koneryhmää vielä. Lisää koneita välilehdellä 'Koneet ja ryhmät'.")
@@ -208,28 +198,25 @@ with tab1:
             koneet_df2 = pd.DataFrame(koneet_ryhmaan)
             koneet_lista = koneet_df2["Kone"].tolist()
 
-            # Muuttuja valinnan tallentamiseen
-            valittu_kone = st.session_state.get(
-                "tab1_konevalinta_radio",
-                koneet_lista[0] if koneet_lista else ""
-            )
+            # Valinta sessioon
+            if "tab1_konevalinta" not in st.session_state:
+                st.session_state.tab1_konevalinta = koneet_lista[0] if koneet_lista else ""
 
-            # Montako saraketta rinnakkain (voit säätää esim. 4 tai 5)
-            col_count = 5
+            st.markdown("**Valitse kone:**")
+
+            col_count = 5   # montako nappia rinnakkain
             cols = st.columns(col_count)
 
             for i, kone in enumerate(koneet_lista):
                 with cols[i % col_count]:
-                    if st.radio(
-                        label="",  # ei otsikkoa
-                        options=[kone],
-                        key=f"tab1_radio_{i}",
-                        index=0
+                    if st.button(
+                        kone,
+                        key=f"btn_{kone}",
+                        type="primary" if st.session_state.tab1_konevalinta == kone else "secondary"
                     ):
-                        valittu_kone = kone
-                        st.session_state.tab1_konevalinta_radio = kone
+                        st.session_state.tab1_konevalinta = kone
 
-            kone_valinta = valittu_kone
+            kone_valinta = st.session_state.tab1_konevalinta
             kone_id = koneet_df2[koneet_df2["Kone"] == kone_valinta]["ID"].values[0]
 
         else:
@@ -293,6 +280,7 @@ with tab1:
                             st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
                             
 
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
@@ -881,6 +869,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
