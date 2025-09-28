@@ -207,7 +207,7 @@ with tab1:
             kone_valinta = ""
 
         if kone_id:
-            # clear_on_submit tyhjentää kentät automaattisesti tallennuksen jälkeen
+            # Lomake huollon syöttöön
             with st.form(key="huolto_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
@@ -221,6 +221,13 @@ with tab1:
                         key="pvm"
                     )
 
+                # Uudet huoltoväli-kentät
+                col3, col4 = st.columns(2)
+                with col3:
+                    huoltovali_h = st.text_input("Huoltoväli (tunnit)", key="form_huoltovali_h")
+                with col4:
+                    huoltovali_pv = st.text_input("Huoltoväli (päivät)", key="form_huoltovali_pv")
+
                 st.markdown("#### Huoltokohteet")
                 vaihtoehdot = ["--", "Vaihd", "Tark", "OK", "Muu"]
                 valinnat = {}
@@ -228,22 +235,19 @@ with tab1:
                 for i, pitkä in enumerate(HUOLTOKOHTEET):
                     with cols_huolto[i % 6]:
                         valinnat[HUOLTOKOHTEET[pitkä]] = st.selectbox(
-                            f"{pitkä}:", vaihtoehdot,
+                            f"{pitkä}:",
+                            vaihtoehdot,
                             key=f"form_valinta_{pitkä}",
                             index=0
                         )
 
-                # ✅ Monirivinen tekstikenttä
-                vapaa = st.text_area("Vapaa teksti", key="form_vapaa", height=150)
+                vapaa = st.text_area("Vapaa teksti", key="form_vapaa", height=100)
 
                 submit = st.form_submit_button("Tallenna huolto")
                 if submit:
                     if not valittu_ryhma or not kone_valinta or not kayttotunnit or not kone_id:
                         st.warning("Täytä kaikki kentät!")
                     else:
-                        import textwrap
-                        vapaa_muokattu = "\n".join(textwrap.wrap(vapaa, width=30))
-
                         uusi = {
                             "HuoltoID": str(uuid.uuid4())[:8],
                             "Kone": kone_valinta,
@@ -251,7 +255,9 @@ with tab1:
                             "Ryhmä": valittu_ryhma,
                             "Tunnit": kayttotunnit,
                             "Päivämäärä": pvm.strftime("%d.%m.%Y"),
-                            "Vapaa teksti": vapaa_muokattu,
+                            "Huoltoväli_h": huoltovali_h,
+                            "Huoltoväli_pv": huoltovali_pv,
+                            "Vapaa teksti": vapaa,
                         }
                         for lyhenne in LYHENTEET:
                             uusi[lyhenne] = valinnat[lyhenne]
@@ -262,9 +268,10 @@ with tab1:
                         try:
                             tallenna_huollot(yhdistetty)
                             st.success("Huolto tallennettu!")
-                            st.rerun()  # Lataa sivun uudelleen
+                            st.rerun()
                         except Exception as e:
                             st.error(f"Tallennus epäonnistui: {e}")
+
                             
 
 # ----------- TAB 2: HUOLTOHISTORIA + PDF/MUOKKAUS/POISTO -----------
@@ -862,6 +869,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
