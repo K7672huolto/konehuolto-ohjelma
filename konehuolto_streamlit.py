@@ -627,33 +627,13 @@ with tab3:
 
 
 
-# ----------- TAB 4: KÄYTTÖTUNNIT + HUOLTOVÄLI MUISTUTUKSET + PDF (DEBUG) -----------
+# ----------- TAB 4: KÄYTTÖTUNNIT + HUOLTOVÄLI MUISTUTUKSET + DEBUG -----------
 with tab4:
-    st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset (debug)")
+    st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset (DEBUG)")
 
     from datetime import datetime
 
-    # CSS
-    st.markdown("""
-    <style>
-      div[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
-      div[data-testid="stNumberInput"] input::-webkit-inner-spin-button {
-          -webkit-appearance: none !important;
-          margin: 0 !important;
-      }
-      div[data-testid="stNumberInput"] input[type=number] {
-          -moz-appearance: textfield !important;
-      }
-      div[data-testid="stNumberInput"] button { display: none !important; }
-      div[data-testid="stNumberInput"] div[role="button"],
-      div[data-testid="stNumberInput"] svg { display: none !important; }
-      div[data-testid="stNumberInput"] input { text-align: left; }
-      .tab4-table-header { font-weight: 600; padding: 4px 0; }
-      .tab4-cell { padding: 2px 0; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # --- Aputoiminnot ---
+    # --- Apufunktio ---
     def safe_int(x):
         try:
             return int(float(str(x).replace(",", ".").strip()))
@@ -710,17 +690,18 @@ with tab4:
         })
     df_tunnit = pd.DataFrame(rivit)
 
-    # 🔍 DEBUG-näyttö: näytä koneiden huoltovälit
-    st.subheader("Debug: koneiden huoltovälit")
-    st.dataframe(df_tunnit[["Kone", "Viimeisin huolto (pvm)", "Huoltoväli_h", "Huoltoväli_pv"]])
+    # --- Debug-näyttö ---
+    st.subheader("DEBUG: koneiden huoltovälit ja päivämäärät")
+    for i, r in df_tunnit.iterrows():
+        st.write(f"DEBUG: {r['Kone']} | pvm='{r['Viimeisin huolto (pvm)']}' | hv_pv={r['Huoltoväli_pv']}")
 
-    # --- Rivien tulostus + muistutukset ---
+    # --- Taulukko muistutuksilla ---
     st.subheader("Taulukko muistutuksilla")
-    colw = [0.25, 0.15, 0.2, 0.15, 0.1, 0.1]
-    headers = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Huoltoväli_h","Huoltoväli_pv"]
+    colw = [0.25, 0.15, 0.2, 0.15, 0.1, 0.1, 0.2]
+    headers = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Huoltoväli_h","Huoltoväli_pv","Muistutus"]
     cols = st.columns(colw, gap="small")
     for j, h in enumerate(headers):
-        cols[j].markdown(f"<div class='tab4-table-header'>{h}</div>", unsafe_allow_html=True)
+        cols[j].markdown(f"<div style='font-weight:600;padding:4px 0'>{h}</div>", unsafe_allow_html=True)
 
     for i, r in df_tunnit.iterrows():
         c = st.columns(colw, gap="small")
@@ -729,25 +710,31 @@ with tab4:
 
         muistutus = ""
         if hv_pv > 0 and pvm != "-":
+            viimeisin_pvm = None
             try:
                 viimeisin_pvm = datetime.strptime(pvm.strip(), "%d.%m.%Y")
+            except Exception:
+                viimeisin_pvm = pd.to_datetime(pvm, dayfirst=True, errors="coerce")
+
+            if viimeisin_pvm and pd.notna(viimeisin_pvm):
                 paivia_kulunut = (datetime.today() - viimeisin_pvm).days
                 if paivia_kulunut >= hv_pv:
                     muistutus = f"⚠️ {paivia_kulunut} pv (yli {hv_pv})"
-            except Exception as e:
-                st.write(f"DEBUG VIRHE: '{pvm}' ei kelvannut ({e})")
+            else:
+                st.write(f"DEBUG VIRHE: Päivämäärä '{pvm}' ei kelvannut")
 
-        c[0].markdown(f"<div class='tab4-cell'><b>{kone}</b></div>", unsafe_allow_html=True)
-        c[1].markdown(f"<div class='tab4-cell'>{ryhma}</div>", unsafe_allow_html=True)
-
+        c[0].markdown(f"<b>{kone}</b>", unsafe_allow_html=True)
+        c[1].write(ryhma)
+        c[2].write(pvm)
+        c[3].write(ed)
+        c[4].write(hv_h)
+        c[5].write(hv_pv)
         if muistutus:
-            c[2].markdown(f"<div class='tab4-cell' style='color:#d00;'>{pvm} {muistutus}</div>", unsafe_allow_html=True)
+            c[6].markdown(f"<span style='color:#d00'>{muistutus}</span>", unsafe_allow_html=True)
         else:
-            c[2].markdown(f"<div class='tab4-cell'>{pvm}</div>", unsafe_allow_html=True)
+            c[6].write("")
 
-        c[3].markdown(f"<div class='tab4-cell'>{ed}</div>", unsafe_allow_html=True)
-        c[4].markdown(f"<div class='tab4-cell'>{hv_h}</div>", unsafe_allow_html=True)
-        c[5].markdown(f"<div class='tab4-cell'>{hv_pv}</div>", unsafe_allow_html=True)
+
 
 
 
