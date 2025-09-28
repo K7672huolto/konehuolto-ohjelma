@@ -867,7 +867,10 @@ with tab4:
         file_name="koneiden_tunnit_muistutuksilla.pdf",
         mime="application/pdf",
         type="secondary",
-        key=
+        key="tab4_pdf_dl"
+    )
+
+
 
 
 
