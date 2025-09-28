@@ -634,24 +634,12 @@ with tab4:
     # --- CSS ---
     st.markdown("""
     <style>
-      /* Piilotetaan + ja - napit */
       div[data-testid="stNumberInput"] button {display: none;}
       div[data-testid="stNumberInput"] div[role="button"] {display: none;}
       div[data-testid="stNumberInput"] svg {display: none;}
-
-      /* Teksti vasemmalle */
       div[data-testid="stNumberInput"] input {text-align: left;}
-
-      /* Tiivistetään syöttökenttä muiden kanssa samalle riville */
-      div[data-testid="stNumberInput"] {
-          margin-top: -6px;
-          margin-bottom: -6px;
-          padding-top: 0px;
-          padding-bottom: 0px;
-      }
-      div[data-testid="stNumberInput"] label {
-          display: none;   /* piilottaa labelin */
-      }
+      div[data-testid="stNumberInput"] {margin-top:-6px; margin-bottom:-6px;}
+      div[data-testid="stNumberInput"] label {display: none;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -715,17 +703,7 @@ with tab4:
         state_key = f"tab4_num_{i}"
         default_val = st.session_state.tab4_inputs.get(state_key, safe_int(r["Syötä uudet tunnit"]))
         uudet = c[6].number_input("", min_value=0, step=1, value=default_val, key=state_key)
-
-        # Tallennus heti kun arvo muuttuu
-        if uudet != default_val:
-            st.session_state.tab4_inputs[state_key] = uudet
-            try:
-                ws = get_gsheet_connection("Käyttötunnit")
-                nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
-                ws.append_row([nyt, kone, ryhma, ed, safe_int(uudet), safe_int(uudet)-ed])
-                st.toast(f"✅ Tallennettu {kone}: {uudet} h", icon="💾")
-            except Exception as e:
-                st.error(f"Tallennus epäonnistui: {e}")
+        st.session_state.tab4_inputs[state_key] = uudet
 
         erotus = safe_int(uudet) - ed   # HUOLLOSTA
 
@@ -748,11 +726,10 @@ with tab4:
         c[0].markdown(f"<b>{kone}</b>", unsafe_allow_html=True)
         c[1].write(ryhma)
         c[2].write(pvm)
-        c[3].markdown(f"<span style='font-size:14px;'>{ed}</span>", unsafe_allow_html=True)   # isompi fontti
-        c[4].markdown(f"<span style='font-size:14px;'>{hv_h}</span>", unsafe_allow_html=True) # isompi fontti
-        c[5].markdown(f"<span style='font-size:14px;'>{hv_pv}</span>", unsafe_allow_html=True) # isompi fontti
+        c[3].markdown(f"<span style='font-size:14px;'>{ed}</span>", unsafe_allow_html=True)
+        c[4].markdown(f"<span style='font-size:14px;'>{hv_h}</span>", unsafe_allow_html=True)
+        c[5].markdown(f"<span style='font-size:14px;'>{hv_pv}</span>", unsafe_allow_html=True)
 
-        # HUOLLOSTA
         if hv_h > 0 and erotus >= hv_h:
             c[7].markdown(f"<span style='color:#d00;'>⚠️ {erotus}</span>", unsafe_allow_html=True)
         else:
@@ -765,7 +742,25 @@ with tab4:
         df_tunnit.at[i,"Muistutus"] = muistutus_html
         df_tunnit.at[i,"Muistutus_pdf"] = muistutus_pdf
 
-    # --- PDF ---
+    # --- Tallennusnappi ---
+    if st.button("💾 Tallenna kaikkien koneiden tunnit", key="tab4_save_all"):
+        try:
+            ws = get_gsheet_connection("Käyttötunnit")
+            nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+            header = ["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"]
+            body = []
+            for _, r in df_tunnit.iterrows():
+                body.append([
+                    nyt, r["Kone"], r["Ryhmä"], safe_int(r["Viimeisin huolto (tunnit)"]),
+                    safe_int(r.get("Syötä uudet tunnit",0)), safe_int(r.get("Huollosta",0))
+                ])
+            ws.clear()
+            ws.update([header] + body)
+            st.success("Tallennettu Käyttötunnit-välilehdelle!")
+        except Exception as e:
+            st.error(f"Tallennus epäonnistui: {e}")
+
+    # --- PDF (sama kuin ennen) ---
     def make_pdf_bytes(df: pd.DataFrame):
         buf = BytesIO()
         otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
@@ -787,7 +782,7 @@ with tab4:
                 val = str(r.get(c,""))
                 if j == 0:
                     row.append(Paragraph(val, kone_bold))
-                elif j == 7:  # Huollosta
+                elif j == 7:
                     hvh = safe_int(r.get("Huoltoväli_h",0))
                     er = safe_int(val)
                     if hvh > 0 and er >= hvh:
@@ -832,6 +827,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
