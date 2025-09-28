@@ -662,34 +662,28 @@ with tab4:
             data = ws.get_all_records()
             if not data:
                 return pd.DataFrame(columns=["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"])
-            dfk = pd.DataFrame(data)
-            return dfk
+            return pd.DataFrame(data)
         except Exception:
             return pd.DataFrame(columns=["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"])
 
     def hae_viimeisin_uudet_tunnit(df_kaytto: pd.DataFrame) -> dict:
-        """Palauttaa dict: {kone_nimi: viimeisin_uudet_tunnit}"""
         if df_kaytto.empty:
             return {}
         tmp = df_kaytto.copy()
         tmp["aika_dt"] = pd.to_datetime(tmp["Aika"], dayfirst=True, errors="coerce")
         tmp.sort_values("aika_dt", inplace=True)
         viimeisin = tmp.groupby("Kone").tail(1)
-        return {
-            r["Kone"]: safe_int(r.get("Uudet tunnit", 0))
-            for _, r in viimeisin.iterrows()
-        }
+        return {r["Kone"]: safe_int(r.get("Uudet tunnit", 0)) for _, r in viimeisin.iterrows()}
 
-    # Ei koneita
+    # --- Lue data ---
+    kaytto_df = lue_kayttotunnit_sheet_df()
+    viimeisin_map = hae_viimeisin_uudet_tunnit(kaytto_df)
+
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
         st.stop()
 
-    # --- Lue viimeisimmät käyttötunnit ---
-    kaytto_df = lue_kayttotunnit_sheet_df()
-    viimeisin_map = hae_viimeisin_uudet_tunnit(kaytto_df)
-
-    # --- Rakennetaan taulukko ---
+    # --- Rakennetaan näkymä ---
     rivit = []
     for _, row in koneet_df.iterrows():
         kone = str(row["Kone"])
@@ -698,8 +692,6 @@ with tab4:
         hv_pv = safe_int(row.get("Huoltoväli_pv", 0))
 
         pvm, viimeisin_tunnit = viimeisin_huolto(huolto_df, kone)
-
-        # Käytä viimeisintä Sheetistä jos löytyy, muuten viimeisin huolto
         oletus = viimeisin_map.get(kone, viimeisin_tunnit)
 
         rivit.append({
@@ -713,11 +705,8 @@ with tab4:
         })
     df_tunnit = pd.DataFrame(rivit)
 
-    if "tab4_inputs" not in st.session_state:
-        st.session_state.tab4_inputs = {}
-
     # --- Otsikot ---
-    colw = [0.18,0.1,0.13,0.1,0.08,0.08,0.1,0.1,0.15]  
+    colw = [0.18,0.1,0.13,0.1,0.08,0.08,0.12,0.1,0.15]  
     headers = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
                "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Huollosta","Muistutus"]
     cols = st.columns(colw, gap="small")
@@ -731,10 +720,10 @@ with tab4:
         ed, hv_h, hv_pv = r["Viimeisin huolto (tunnit)"], r["Huoltoväli_h"], r["Huoltoväli_pv"]
 
         state_key = f"tab4_num_{i}"
-        default_val = st.session_state.tab4_inputs.get(state_key, safe_int(r["Syötä uudet tunnit"]))
+        default_val = st.session_state.get(state_key, safe_int(r["Syötä uudet tunnit"]))
         uudet = c[6].number_input("", min_value=0, step=1, value=default_val, key=state_key)
 
-        erotus = safe_int(uudet) - ed   # HUOLLOSTA
+        erotus = safe_int(uudet) - ed
 
         # Päiväperusteinen muistutus
         muistutus_html = ""
@@ -751,7 +740,7 @@ with tab4:
                     muistutus_html = f"<span style='color:green;'>✅ {jaljella} pv jäljellä (väli {hv_pv})</span>"
                     muistutus_pdf = f"✅ {jaljella} pv jäljellä (väli {hv_pv})"
 
-        # Tulostus
+        # Tulostus samalla rivillä
         c[0].markdown(f"<b>{kone}</b>", unsafe_allow_html=True)
         c[1].write(ryhma)
         c[2].write(pvm)
@@ -788,6 +777,81 @@ with tab4:
             st.success("Tallennettu Käyttötunnit-välilehdelle!")
         except Exception as e:
             st.error(f"Tallennus epäonnistui: {e}")
+
+    # --- PDF-lataus ---
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.pagesizes import landscape, A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch, mm
+
+    def make_pdf_bytes(df: pd.DataFrame):
+        buf = BytesIO()
+        otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
+        paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"), ParagraphStyle("date", fontSize=12, alignment=2))
+        otsikko = Paragraph("Koneiden käyttötunnit ja huoltomuistutukset", otsikkotyyli)
+
+        cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
+                "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Huollosta","Muistutus_pdf"]
+        data = [["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
+                 "Huoltoväli_h","Huoltoväli_pv","Uudet tunnit","Huollosta","Muistutus"]]
+
+        norm = ParagraphStyle(name="norm", fontName="Helvetica", fontSize=8)
+        kone_bold = ParagraphStyle(name="kone_bold", fontName="Helvetica-Bold", fontSize=8)
+
+        for _, r in df.iterrows():
+            row = []
+            for j, c in enumerate(cols):
+                val = str(r.get(c,""))
+                if j == 0:
+                    row.append(Paragraph(val, kone_bold))
+                elif j == 7:
+                    hvh = safe_int(r.get("Huoltoväli_h",0))
+                    er = safe_int(val)
+                    if hvh > 0 and er >= hvh:
+                        row.append(Paragraph(f"<font color='red'>⚠️ {er}</font>", norm))
+                    else:
+                        row.append(Paragraph(f"<font color='green'>✅ {er}</font>", norm))
+                elif "⚠️" in val:
+                    row.append(Paragraph(f"<font color='red'>{val}</font>", norm))
+                elif "✅" in val:
+                    row.append(Paragraph(f"<font color='green'>{val}</font>", norm))
+                else:
+                    row.append(Paragraph(val, norm))
+            data.append(row)
+
+        col_widths = [120, 80, 100, 80, 60, 60, 80, 70, 150]
+        table = Table(data, repeatRows=1, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.teal),
+            ('TEXTCOLOR',  (0,0), (-1,0), colors.whitesmoke),
+            ('FONTNAME',   (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE',   (0,0), (-1,-1), 8),
+            ('GRID',       (0,0), (-1,-1), 0.5, colors.black),
+            ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN',      (0,0), (-1,-1), 'CENTER'),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+        ]))
+
+        doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                                rightMargin=0.5*inch, leftMargin=0.5*inch,
+                                topMargin=0.7*inch, bottomMargin=0.5*inch)
+        doc.build([Spacer(1, 4*mm),
+                   Table([[otsikko, paivays]], colWidths=[340, 340]),
+                   Spacer(1, 4*mm),
+                   table])
+        return buf.getvalue()
+
+    st.download_button(
+        "⬇️ Lataa PDF-tiedosto",
+        data=make_pdf_bytes(df_tunnit.copy()),
+        file_name="koneiden_tunnit_muistutuksilla.pdf",
+        mime="application/pdf",
+        type="secondary",
+        key="tab4_pdf_dl"
+    )
+
+
 
 
 
