@@ -631,13 +631,27 @@ with tab3:
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset")
 
-    # --- CSS syöttönappien piilottamiseen ---
+    # --- CSS ---
     st.markdown("""
     <style>
+      /* Piilotetaan + ja - napit */
       div[data-testid="stNumberInput"] button {display: none;}
       div[data-testid="stNumberInput"] div[role="button"] {display: none;}
       div[data-testid="stNumberInput"] svg {display: none;}
+
+      /* Teksti vasemmalle */
       div[data-testid="stNumberInput"] input {text-align: left;}
+
+      /* Tiivistetään syöttökenttä muiden kanssa samalle riville */
+      div[data-testid="stNumberInput"] {
+          margin-top: -6px;
+          margin-bottom: -6px;
+          padding-top: 0px;
+          padding-bottom: 0px;
+      }
+      div[data-testid="stNumberInput"] label {
+          display: none;   /* piilottaa labelin */
+      }
     </style>
     """, unsafe_allow_html=True)
 
@@ -668,7 +682,6 @@ with tab4:
         ryhma = str(row.get("Ryhmä", ""))
         hv_h = safe_int(row.get("Huoltoväli_h", 0))
         hv_pv = safe_int(row.get("Huoltoväli_pv", 0))
-
         pvm, viimeisin_tunnit = viimeisin_huolto(huolto_df, kone)
 
         rivit.append({
@@ -700,10 +713,19 @@ with tab4:
         ed, hv_h, hv_pv = r["Viimeisin huolto (tunnit)"], r["Huoltoväli_h"], r["Huoltoväli_pv"]
 
         state_key = f"tab4_num_{i}"
-        uudet = c[6].number_input("", min_value=0, step=1,
-                                  value=st.session_state.tab4_inputs.get(state_key, safe_int(r["Syötä uudet tunnit"])),
-                                  key=state_key)
-        st.session_state.tab4_inputs[state_key] = uudet
+        default_val = st.session_state.tab4_inputs.get(state_key, safe_int(r["Syötä uudet tunnit"]))
+        uudet = c[6].number_input("", min_value=0, step=1, value=default_val, key=state_key)
+
+        # Tallennus heti kun arvo muuttuu
+        if uudet != default_val:
+            st.session_state.tab4_inputs[state_key] = uudet
+            try:
+                ws = get_gsheet_connection("Käyttötunnit")
+                nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+                ws.append_row([nyt, kone, ryhma, ed, safe_int(uudet), safe_int(uudet)-ed])
+                st.toast(f"✅ Tallennettu {kone}: {uudet} h", icon="💾")
+            except Exception as e:
+                st.error(f"Tallennus epäonnistui: {e}")
 
         erotus = safe_int(uudet) - ed   # HUOLLOSTA
 
@@ -743,25 +765,7 @@ with tab4:
         df_tunnit.at[i,"Muistutus"] = muistutus_html
         df_tunnit.at[i,"Muistutus_pdf"] = muistutus_pdf
 
-    # --- Tallennusnappi ---
-    if st.button("💾 Tallenna kaikkien koneiden tunnit", key="tab4_save_all"):
-        try:
-            ws = get_gsheet_connection("Käyttötunnit")
-            nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
-            header = ["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"]
-            body = []
-            for _, r in df_tunnit.iterrows():
-                body.append([
-                    nyt, r["Kone"], r["Ryhmä"], safe_int(r["Viimeisin huolto (tunnit)"]),
-                    safe_int(r["Syötä uudet tunnit"]), safe_int(r["Huollosta"])
-                ])
-            ws.clear()
-            ws.update([header] + body)
-            st.success("✅ Tallennettu kaikki tunnit!")
-        except Exception as e:
-            st.error(f"Tallennus epäonnistui: {e}")
-
-    # --- PDF-lataus säilyy ennallaan ---
+    # --- PDF ---
     def make_pdf_bytes(df: pd.DataFrame):
         buf = BytesIO()
         otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
@@ -771,7 +775,8 @@ with tab4:
 
         cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
                 "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Huollosta","Muistutus_pdf"]
-        data = [headers]
+        data = [["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
+                 "Huoltoväli_h","Huoltoväli_pv","Uudet tunnit","Huollosta","Muistutus"]]
 
         norm = ParagraphStyle(name="norm", fontName="Helvetica", fontSize=8)
         kone_bold = ParagraphStyle(name="kone_bold", fontName="Helvetica-Bold", fontSize=8)
@@ -827,6 +832,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
