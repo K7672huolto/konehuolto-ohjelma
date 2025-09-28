@@ -631,7 +631,7 @@ with tab3:
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset")
 
-    # CSS
+    # CSS tyylit
     st.markdown("""
     <style>
       div[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
@@ -651,7 +651,7 @@ with tab4:
     </style>
     """, unsafe_allow_html=True)
 
-    # --- Aputoiminnot ---
+    # --- Apufunktiot ---
     def lue_kayttotunnit_sheet_df() -> pd.DataFrame:
         try:
             ws = get_gsheet_connection("Käyttötunnit")
@@ -692,7 +692,7 @@ with tab4:
     kaytto_df = lue_kayttotunnit_sheet_df()
     viimeisin_uudet_map = hae_viimeisin_uusi_tunti_map(kaytto_df)
 
-    # Rakenna näkymärivit
+    # Rakenna rivit
     rivit = []
     for _, row in koneet_df.iterrows():
         kone = str(row["Kone"])
@@ -738,6 +738,7 @@ with tab4:
         erotus = safe_int(uudet) - ed
 
         muistutus = ""
+        # Päiväperusteinen muistutus
         if hv_pv > 0 and pvm != "-":
             try:
                 viimeisin_pvm = datetime.strptime(pvm, "%d.%m.%Y")
@@ -747,6 +748,7 @@ with tab4:
             except:
                 pass
 
+        # Tulostus
         c[0].markdown(f"<div class='tab4-cell'><b>{kone_n}</b></div>", unsafe_allow_html=True)
         c[1].markdown(f"<div class='tab4-cell'>{ryhma}</div>", unsafe_allow_html=True)
         c[2].markdown(f"<div class='tab4-cell'>{pvm}</div>", unsafe_allow_html=True)
@@ -754,11 +756,13 @@ with tab4:
         c[4].markdown(f"<div class='tab4-cell'>{hv_h}</div>", unsafe_allow_html=True)
         c[5].markdown(f"<div class='tab4-cell'>{hv_pv}</div>", unsafe_allow_html=True)
 
+        # Erotus huomioi tuntivälin
         if hv_h > 0 and erotus >= hv_h:
             c[7].markdown(f"<div class='tab4-cell' style='color:#d00;'>⚠️ {erotus}</div>", unsafe_allow_html=True)
         else:
             c[7].markdown(f"<div class='tab4-cell'>{erotus}</div>", unsafe_allow_html=True)
 
+        # Päivämuistutus korostetaan pvm-sarakkeessa
         if muistutus:
             c[2].markdown(f"<div class='tab4-cell' style='color:#d00;'>{pvm} {muistutus}</div>", unsafe_allow_html=True)
 
@@ -766,7 +770,7 @@ with tab4:
         df_tunnit.at[i,"Erotus"] = erotus
         df_tunnit.at[i,"Muistutus"] = muistutus
 
-    # --- Tallenna ---
+    # --- Tallenna sheettiin ---
     if st.button("💾 Tallenna kaikkien koneiden tunnit ja muistutukset", key="tab4_save_all"):
         try:
             ws = get_gsheet_connection("Käyttötunnit")
@@ -784,13 +788,13 @@ with tab4:
         except Exception as e:
             st.error(f"Tallennus epäonnistui: {e}")
 
-    # --- PDF ---
+    # --- PDF-lataus ---
     def make_pdf_bytes(df: pd.DataFrame):
         buf = BytesIO()
         otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
         paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"),
                             ParagraphStyle("date", fontSize=12, alignment=2))
-        otsikko = Paragraph("Koneiden käyttötunnit", otsikkotyyli)
+        otsikko = Paragraph("Koneiden käyttötunnit ja muistutukset", otsikkotyyli)
 
         cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
                 "Huoltoväli_h","Huoltoväli_pv","Uudet tunnit","Erotus","Muistutus"]
@@ -869,6 +873,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
