@@ -627,10 +627,21 @@ with tab3:
 
 
 
-# ----------- TAB 4: KÄYTTÖTUNNIT + HUOLTOVÄLI MUISTUTUKSET + PDF + TALLENNUS -----------
+# ----------- TAB 4: KÄYTTÖTUNNIT + HUOLTOVÄLI MUISTUTUKSET + PDF -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset")
 
+    # --- CSS syöttönappien piilottamiseen ---
+    st.markdown("""
+    <style>
+      div[data-testid="stNumberInput"] button {display: none;}
+      div[data-testid="stNumberInput"] div[role="button"] {display: none;}
+      div[data-testid="stNumberInput"] svg {display: none;}
+      div[data-testid="stNumberInput"] input {text-align: left;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # --- Apufunktiot ---
     def safe_int(x):
         try:
             return int(float(str(x).replace(",", ".").strip()))
@@ -650,6 +661,7 @@ with tab4:
         st.info("Ei koneita lisättynä.")
         st.stop()
 
+    # --- Rakennetaan taulukko ---
     rivit = []
     for _, row in koneet_df.iterrows():
         kone = str(row["Kone"])
@@ -673,15 +685,15 @@ with tab4:
     if "tab4_inputs" not in st.session_state:
         st.session_state.tab4_inputs = {}
 
-    # Otsikkorivi
-    colw = [0.18,0.1,0.13,0.1,0.08,0.08,0.1,0.15]  
+    # --- Otsikot ---
+    colw = [0.18,0.1,0.13,0.1,0.08,0.08,0.1,0.1,0.15]  
     headers = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
-               "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Muistutus"]
+               "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Huollosta","Muistutus"]
     cols = st.columns(colw, gap="small")
     for j, h in enumerate(headers):
         cols[j].markdown(f"<div style='font-weight:600;padding:4px 0;text-align:left'>{h}</div>", unsafe_allow_html=True)
 
-    # Rivien tulostus
+    # --- Rivien tulostus ---
     for i, r in df_tunnit.iterrows():
         c = st.columns(colw, gap="small")
         kone, ryhma, pvm = r["Kone"], r["Ryhmä"], r["Viimeisin huolto (pvm)"]
@@ -692,19 +704,14 @@ with tab4:
         uudet = c[6].number_input("", min_value=0, step=1, value=default_val, key=state_key)
         st.session_state.tab4_inputs[state_key] = uudet
 
-        erotus = safe_int(uudet) - ed
+        erotus = safe_int(uudet) - ed   # HUOLLOSTA
 
         # Päiväperusteinen muistutus
         muistutus_html = ""
         muistutus_pdf = ""
         if hv_pv > 0 and pvm != "-":
-            viimeisin_pvm = None
-            try:
-                viimeisin_pvm = datetime.strptime(pvm.strip(), "%d.%m.%Y")
-            except Exception:
-                viimeisin_pvm = pd.to_datetime(pvm, dayfirst=True, errors="coerce")
-
-            if viimeisin_pvm and pd.notna(viimeisin_pvm):
+            viimeisin_pvm = pd.to_datetime(pvm, dayfirst=True, errors="coerce")
+            if pd.notna(viimeisin_pvm):
                 paivia_kulunut = (datetime.today() - viimeisin_pvm).days
                 if paivia_kulunut >= hv_pv:
                     muistutus_html = f"<span style='color:#d00;'>⚠️ {paivia_kulunut} pv (yli {hv_pv})</span>"
@@ -721,32 +728,19 @@ with tab4:
         c[3].write(ed)
         c[4].write(hv_h)
         c[5].write(hv_pv)
-        c[7].markdown(muistutus_html, unsafe_allow_html=True)
+
+        # HUOLLOSTA
+        if hv_h > 0 and erotus >= hv_h:
+            c[7].markdown(f"<span style='color:#d00;'>⚠️ {erotus}</span>", unsafe_allow_html=True)
+        else:
+            c[7].markdown(f"<span style='color:green;'>✅ {erotus}</span>", unsafe_allow_html=True)
+
+        c[8].markdown(muistutus_html, unsafe_allow_html=True)
 
         df_tunnit.at[i,"Syötä uudet tunnit"] = safe_int(uudet)
-        df_tunnit.at[i,"Erotus"] = erotus
+        df_tunnit.at[i,"Huollosta"] = erotus
         df_tunnit.at[i,"Muistutus"] = muistutus_html
         df_tunnit.at[i,"Muistutus_pdf"] = muistutus_pdf
-
-    # --- Tallennus Google Sheetiin ---
-    if st.button("💾 Tallenna kaikkien koneiden tunnit ja muistutukset", key="tab4_save_all"):
-        try:
-            ws = get_gsheet_connection("Käyttötunnit")
-            nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
-            header = ["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"]
-            body = []
-            for _, r in df_tunnit.iterrows():
-                body.append([
-                    nyt, r["Kone"], r["Ryhmä"],
-                    safe_int(r["Viimeisin huolto (tunnit)"]),
-                    safe_int(r.get("Syötä uudet tunnit",0)),
-                    safe_int(r.get("Erotus",0))
-                ])
-            ws.clear()
-            ws.update([header] + body)
-            st.success("Tallennettu Käyttötunnit-välilehdelle!")
-        except Exception as e:
-            st.error(f"Tallennus epäonnistui: {e}")
 
     # --- PDF ---
     def make_pdf_bytes(df: pd.DataFrame):
@@ -757,9 +751,9 @@ with tab4:
         otsikko = Paragraph("Koneiden käyttötunnit ja huoltomuistutukset", otsikkotyyli)
 
         cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
-                "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Erotus","Muistutus_pdf"]
+                "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Huollosta","Muistutus_pdf"]
         data = [["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
-                 "Huoltoväli_h","Huoltoväli_pv","Uudet tunnit","Erotus","Muistutus"]]
+                 "Huoltoväli_h","Huoltoväli_pv","Uudet tunnit","Huollosta","Muistutus"]]
 
         norm = ParagraphStyle(name="norm", fontName="Helvetica", fontSize=8)
         kone_bold = ParagraphStyle(name="kone_bold", fontName="Helvetica-Bold", fontSize=8)
@@ -770,6 +764,13 @@ with tab4:
                 val = str(r.get(c,""))
                 if j == 0:
                     row.append(Paragraph(val, kone_bold))
+                elif j == 7:  # Huollosta
+                    hvh = safe_int(r.get("Huoltoväli_h",0))
+                    er = safe_int(val)
+                    if hvh > 0 and er >= hvh:
+                        row.append(Paragraph(f"<font color='red'>⚠️ {er}</font>", norm))
+                    else:
+                        row.append(Paragraph(f"<font color='green'>✅ {er}</font>", norm))
                 elif "⚠️" in val:
                     row.append(Paragraph(f"<font color='red'>{val}</font>", norm))
                 elif "✅" in val:
@@ -808,6 +809,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
