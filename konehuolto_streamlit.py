@@ -627,58 +627,39 @@ with tab3:
 
 
 
-# ----------- TAB 4: KÄYTTÖTUNNIT + HUOLTOVÄLI MUISTUTUKSET + DEBUG -----------
+# ----------- TAB 4: KÄYTTÖTUNNIT + HUOLTOVÄLI MUISTUTUKSET + PDF -----------
 with tab4:
-    st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset (DEBUG)")
+    st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset")
 
-    from datetime import datetime
-
-    # --- Apufunktio ---
+    # --- Aputoiminnot ---
     def safe_int(x):
         try:
             return int(float(str(x).replace(",", ".").strip()))
         except:
             return 0
 
-    def viimeisin_huolto_ja_valit(df_huollot: pd.DataFrame, kone_nimi: str, koneet_df: pd.DataFrame):
-        hv_h = 0
-        hv_pv = 0
-        try:
-            kone_rivi = koneet_df[koneet_df["Kone"] == kone_nimi].iloc[0]
-            hv_h = safe_int(kone_rivi.get("Huoltoväli_h", 0))
-            hv_pv = safe_int(kone_rivi.get("Huoltoväli_pv", 0))
-        except Exception:
-            pass
-
+    def viimeisin_huolto(df_huollot: pd.DataFrame, kone_nimi: str):
         sub = df_huollot[df_huollot["Kone"] == kone_nimi].copy()
         if sub.empty:
-            return "-", 0, hv_h, hv_pv
-
+            return "-", 0
         sub["pvm_dt"] = pd.to_datetime(sub["Päivämäärä"], dayfirst=True, errors="coerce")
         sub = sub.sort_values("pvm_dt", ascending=False)
-        uusin = sub.iloc[0]
+        return sub.iloc[0].get("Päivämäärä", "-"), safe_int(sub.iloc[0].get("Tunnit", 0))
 
-        pvm_str = uusin.get("Päivämäärä", "-")
-        tunnit  = safe_int(uusin.get("Tunnit", 0))
-        hv_h_u  = safe_int(uusin.get("Huoltoväli_h", 0))
-        hv_pv_u = safe_int(uusin.get("Huoltoväli_pv", 0))
-
-        if hv_h_u > 0: hv_h = hv_h_u
-        if hv_pv_u > 0: hv_pv = hv_pv_u
-
-        return pvm_str, tunnit, hv_h, hv_pv
-
-    # --- Data ---
+    # --- Ei koneita ---
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
         st.stop()
 
+    # --- Rakenna rivit ---
     rivit = []
     for _, row in koneet_df.iterrows():
         kone = str(row["Kone"])
         ryhma = str(row.get("Ryhmä", ""))
+        hv_h = safe_int(row.get("Huoltoväli_h", 0))
+        hv_pv = safe_int(row.get("Huoltoväli_pv", 0))
 
-        pvm, viimeisin_tunnit, hv_h, hv_pv = viimeisin_huolto_ja_valit(huolto_df, kone, koneet_df)
+        pvm, viimeisin_tunnit = viimeisin_huolto(huolto_df, kone)
 
         rivit.append({
             "Kone": kone,
@@ -690,24 +671,25 @@ with tab4:
         })
     df_tunnit = pd.DataFrame(rivit)
 
-    # --- Debug-näyttö ---
-    st.subheader("DEBUG: koneiden huoltovälit ja päivämäärät")
-    for i, r in df_tunnit.iterrows():
-        st.write(f"DEBUG: {r['Kone']} | pvm='{r['Viimeisin huolto (pvm)']}' | hv_pv={r['Huoltoväli_pv']}")
-
-    # --- Taulukko muistutuksilla ---
-    st.subheader("Taulukko muistutuksilla")
-    colw = [0.25, 0.15, 0.2, 0.15, 0.1, 0.1, 0.2]
-    headers = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)","Huoltoväli_h","Huoltoväli_pv","Muistutus"]
+    # --- Näyttö taulukkomuodossa ---
+    colw = [0.18,0.1,0.13,0.1,0.08,0.08,0.1,0.15]  
+    headers = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
+               "Huoltoväli_h","Huoltoväli_pv","Erotus","Muistutus"]
     cols = st.columns(colw, gap="small")
     for j, h in enumerate(headers):
-        cols[j].markdown(f"<div style='font-weight:600;padding:4px 0'>{h}</div>", unsafe_allow_html=True)
+        cols[j].markdown(f"<div style='font-weight:600;padding:4px 0;text-align:left'>{h}</div>", unsafe_allow_html=True)
 
     for i, r in df_tunnit.iterrows():
         c = st.columns(colw, gap="small")
         kone, ryhma, pvm = r["Kone"], r["Ryhmä"], r["Viimeisin huolto (pvm)"]
         ed, hv_h, hv_pv = r["Viimeisin huolto (tunnit)"], r["Huoltoväli_h"], r["Huoltoväli_pv"]
 
+        # Erotus (tuntiperusteinen muistutus)
+        # Oletetaan että käyttäjä ei syötä tässä uusia -> käytetään viimeisintä
+        uudet = ed  
+        erotus = safe_int(uudet) - ed
+
+        # Päiväperusteinen muistutus
         muistutus = ""
         if hv_pv > 0 and pvm != "-":
             viimeisin_pvm = None
@@ -719,20 +701,98 @@ with tab4:
             if viimeisin_pvm and pd.notna(viimeisin_pvm):
                 paivia_kulunut = (datetime.today() - viimeisin_pvm).days
                 if paivia_kulunut >= hv_pv:
-                    muistutus = f"⚠️ {paivia_kulunut} pv (yli {hv_pv})"
-            else:
-                st.write(f"DEBUG VIRHE: Päivämäärä '{pvm}' ei kelvannut")
+                    muistutus = f"<span style='color:#d00;'>⚠️ {paivia_kulunut} pv (yli {hv_pv})</span>"
+                else:
+                    jaljella = hv_pv - paivia_kulunut
+                    muistutus = f"<span style='color:green;'>✅ {jaljella} pv jäljellä (väli {hv_pv})</span>"
 
+        # Tulostus
         c[0].markdown(f"<b>{kone}</b>", unsafe_allow_html=True)
-        c[1].write(ryhma)
-        c[2].write(pvm)
-        c[3].write(ed)
-        c[4].write(hv_h)
-        c[5].write(hv_pv)
-        if muistutus:
-            c[6].markdown(f"<span style='color:#d00'>{muistutus}</span>", unsafe_allow_html=True)
-        else:
-            c[6].write("")
+        c[1].markdown(ryhma, unsafe_allow_html=True)
+        c[2].markdown(pvm, unsafe_allow_html=True)
+        c[3].markdown(str(ed), unsafe_allow_html=True)
+        c[4].markdown(str(hv_h), unsafe_allow_html=True)
+        c[5].markdown(str(hv_pv), unsafe_allow_html=True)
+        c[6].markdown(str(erotus), unsafe_allow_html=True)
+        c[7].markdown(muistutus, unsafe_allow_html=True)
+
+        # Talleta df:ään myös muistutus
+        df_tunnit.at[i,"Erotus"] = erotus
+        df_tunnit.at[i,"Muistutus"] = muistutus
+
+    # --- PDF ---
+    def make_pdf_bytes(df: pd.DataFrame):
+        buf = BytesIO()
+        otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
+        paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"),
+                            ParagraphStyle("date", fontSize=12, alignment=2))
+        otsikko = Paragraph("Koneiden käyttötunnit ja huoltomuistutukset", otsikkotyyli)
+
+        cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
+                "Huoltoväli_h","Huoltoväli_pv","Erotus","Muistutus"]
+        data = [cols]
+
+        norm = ParagraphStyle(name="norm", fontName="Helvetica", fontSize=8)
+        kone_bold = ParagraphStyle(name="kone_bold", fontName="Helvetica-Bold", fontSize=8)
+
+        for _, r in df.iterrows():
+            row = []
+            for j, c in enumerate(cols):
+                val = str(r.get(c,""))
+                if j == 0:
+                    row.append(Paragraph(val, kone_bold))
+                elif "⚠️" in val:
+                    row.append(Paragraph(f"<font color='red'>{val}</font>", norm))
+                elif "✅" in val:
+                    row.append(Paragraph(f"<font color='green'>{val}</font>", norm))
+                else:
+                    row.append(Paragraph(val, norm))
+            data.append(row)
+
+        col_widths = [120, 80, 100, 80, 70, 70, 70, 150]
+        table = Table(data, repeatRows=1, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.teal),
+            ('TEXTCOLOR',  (0,0), (-1,0), colors.whitesmoke),
+            ('FONTNAME',   (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE',   (0,0), (-1,-1), 8),
+            ('GRID',       (0,0), (-1,-1), 0.5, colors.black),
+            ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN',      (0,0), (-1,-1), 'CENTER'),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+        ]))
+
+        def footer(canvas, doc):
+            canvas.saveState()
+            canvas.setFont('Helvetica', 8)
+            canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
+            canvas.restoreState()
+
+        doc = SimpleDocTemplate(
+            buf, pagesize=landscape(A4),
+            rightMargin=0.5*inch, leftMargin=0.5*inch,
+            topMargin=0.7*inch, bottomMargin=0.5*inch
+        )
+        doc.build([Spacer(1, 4*mm),
+                   Table([[otsikko, paivays]], colWidths=[340, 340], style=[
+                       ("ALIGN", (0,0), (0,0), "LEFT"),
+                       ("ALIGN", (1,0), (1,0), "RIGHT"),
+                   ]),
+                   Spacer(1, 4*mm),
+                   table],
+                   onFirstPage=footer, onLaterPages=footer)
+        return buf.getvalue()
+
+    st.download_button(
+        "⬇️ Lataa PDF-tiedosto",
+        data=make_pdf_bytes(df_tunnit.copy()),
+        file_name="koneiden_tunnit_muistutuksilla.pdf",
+        mime="application/pdf",
+        type="secondary",
+        key="tab4_pdf_dl"
+    )
+
+
 
 
 
