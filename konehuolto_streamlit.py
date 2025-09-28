@@ -62,7 +62,7 @@ st.markdown(
         background-image: url('{kuva_base64}');
         background-size: cover;
         background-position: center;
-        padding: 100px 0 100px 0;
+        padding: 120px 0 120px 0;
         margin-bottom: 0.2em;
         text-align: center;
         width: 100vw;
@@ -862,6 +862,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
