@@ -700,19 +700,10 @@ with tab4:
         ed, hv_h, hv_pv = r["Viimeisin huolto (tunnit)"], r["Huoltoväli_h"], r["Huoltoväli_pv"]
 
         state_key = f"tab4_num_{i}"
-        default_val = st.session_state.tab4_inputs.get(state_key, safe_int(r["Syötä uudet tunnit"]))
-        uudet = c[6].number_input("", min_value=0, step=1, value=default_val, key=state_key)
-
-        # Tallennus heti kun arvo muuttuu (Enter)
-        if uudet != default_val:
-            st.session_state.tab4_inputs[state_key] = uudet
-            try:
-                ws = get_gsheet_connection("Käyttötunnit")
-                nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
-                ws.append_row([nyt, kone, ryhma, ed, safe_int(uudet), safe_int(uudet)-ed])
-                st.toast(f"✅ Tallennettu {kone}: {uudet} h", icon="💾")
-            except Exception as e:
-                st.error(f"Tallennus epäonnistui: {e}")
+        uudet = c[6].number_input("", min_value=0, step=1,
+                                  value=st.session_state.tab4_inputs.get(state_key, safe_int(r["Syötä uudet tunnit"])),
+                                  key=state_key)
+        st.session_state.tab4_inputs[state_key] = uudet
 
         erotus = safe_int(uudet) - ed   # HUOLLOSTA
 
@@ -752,7 +743,25 @@ with tab4:
         df_tunnit.at[i,"Muistutus"] = muistutus_html
         df_tunnit.at[i,"Muistutus_pdf"] = muistutus_pdf
 
-    # --- PDF-lataus säilyy ennallaan (ei muutoksia) ---
+    # --- Tallennusnappi ---
+    if st.button("💾 Tallenna kaikkien koneiden tunnit", key="tab4_save_all"):
+        try:
+            ws = get_gsheet_connection("Käyttötunnit")
+            nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+            header = ["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"]
+            body = []
+            for _, r in df_tunnit.iterrows():
+                body.append([
+                    nyt, r["Kone"], r["Ryhmä"], safe_int(r["Viimeisin huolto (tunnit)"]),
+                    safe_int(r["Syötä uudet tunnit"]), safe_int(r["Huollosta"])
+                ])
+            ws.clear()
+            ws.update([header] + body)
+            st.success("✅ Tallennettu kaikki tunnit!")
+        except Exception as e:
+            st.error(f"Tallennus epäonnistui: {e}")
+
+    # --- PDF-lataus säilyy ennallaan ---
     def make_pdf_bytes(df: pd.DataFrame):
         buf = BytesIO()
         otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
@@ -762,8 +771,7 @@ with tab4:
 
         cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
                 "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Huollosta","Muistutus_pdf"]
-        data = [["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
-                 "Huoltoväli_h","Huoltoväli_pv","Uudet tunnit","Huollosta","Muistutus"]]
+        data = [headers]
 
         norm = ParagraphStyle(name="norm", fontName="Helvetica", fontSize=8)
         kone_bold = ParagraphStyle(name="kone_bold", fontName="Helvetica-Bold", fontSize=8)
@@ -819,6 +827,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
