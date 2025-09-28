@@ -699,9 +699,13 @@ with tab4:
         ed, hv_h, hv_pv = r["Viimeisin huolto (tunnit)"], r["Huoltoväli_h"], r["Huoltoväli_pv"]
 
         state_key = f"tab4_num_{i}"
-        default_val = st.session_state.get(state_key, safe_int(r["Syötä uudet tunnit"]))
-        uudet = c[6].number_input("", min_value=0, step=1, value=default_val, key=state_key)
-        st.session_state[state_key] = uudet
+        default_val = st.session_state.tab4_inputs.get(state_key, safe_int(r["Syötä uudet tunnit"]))
+
+        # syöttökenttä saa oman uniikin keyn
+        uudet = c[6].number_input(
+            "", min_value=0, step=1, value=default_val, key=f"{state_key}_input"
+        )
+        st.session_state.tab4_inputs[state_key] = uudet
 
         erotus = safe_int(uudet) - ed
 
@@ -826,6 +830,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
