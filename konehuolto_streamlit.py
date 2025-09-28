@@ -631,7 +631,6 @@ with tab3:
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset")
 
-    # --- Aputoiminnot ---
     def safe_int(x):
         try:
             return int(float(str(x).replace(",", ".").strip()))
@@ -646,12 +645,11 @@ with tab4:
         sub = sub.sort_values("pvm_dt", ascending=False)
         return sub.iloc[0].get("Päivämäärä", "-"), safe_int(sub.iloc[0].get("Tunnit", 0))
 
-    # --- Ei koneita ---
+    # Ei koneita
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
         st.stop()
 
-    # --- Rakenna rivit ---
     rivit = []
     for _, row in koneet_df.iterrows():
         kone = str(row["Kone"])
@@ -668,25 +666,32 @@ with tab4:
             "Viimeisin huolto (tunnit)": viimeisin_tunnit,
             "Huoltoväli_h": hv_h,
             "Huoltoväli_pv": hv_pv,
+            "Syötä uudet tunnit": viimeisin_tunnit,
         })
     df_tunnit = pd.DataFrame(rivit)
 
-    # --- Näyttö taulukkomuodossa ---
+    if "tab4_inputs" not in st.session_state:
+        st.session_state.tab4_inputs = {}
+
+    # Otsikkorivi
     colw = [0.18,0.1,0.13,0.1,0.08,0.08,0.1,0.15]  
     headers = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
-               "Huoltoväli_h","Huoltoväli_pv","Erotus","Muistutus"]
+               "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Muistutus"]
     cols = st.columns(colw, gap="small")
     for j, h in enumerate(headers):
         cols[j].markdown(f"<div style='font-weight:600;padding:4px 0;text-align:left'>{h}</div>", unsafe_allow_html=True)
 
+    # Rivien tulostus
     for i, r in df_tunnit.iterrows():
         c = st.columns(colw, gap="small")
         kone, ryhma, pvm = r["Kone"], r["Ryhmä"], r["Viimeisin huolto (pvm)"]
         ed, hv_h, hv_pv = r["Viimeisin huolto (tunnit)"], r["Huoltoväli_h"], r["Huoltoväli_pv"]
 
-        # Erotus (tuntiperusteinen muistutus)
-        # Oletetaan että käyttäjä ei syötä tässä uusia -> käytetään viimeisintä
-        uudet = ed  
+        state_key = f"tab4_num_{i}"
+        default_val = st.session_state.tab4_inputs.get(state_key, safe_int(r["Syötä uudet tunnit"]))
+        uudet = c[6].number_input("", min_value=0, step=1, value=default_val, key=state_key)
+        st.session_state.tab4_inputs[state_key] = uudet
+
         erotus = safe_int(uudet) - ed
 
         # Päiväperusteinen muistutus
@@ -708,15 +713,14 @@ with tab4:
 
         # Tulostus
         c[0].markdown(f"<b>{kone}</b>", unsafe_allow_html=True)
-        c[1].markdown(ryhma, unsafe_allow_html=True)
-        c[2].markdown(pvm, unsafe_allow_html=True)
-        c[3].markdown(str(ed), unsafe_allow_html=True)
-        c[4].markdown(str(hv_h), unsafe_allow_html=True)
-        c[5].markdown(str(hv_pv), unsafe_allow_html=True)
-        c[6].markdown(str(erotus), unsafe_allow_html=True)
+        c[1].write(ryhma)
+        c[2].write(pvm)
+        c[3].write(ed)
+        c[4].write(hv_h)
+        c[5].write(hv_pv)
         c[7].markdown(muistutus, unsafe_allow_html=True)
 
-        # Talleta df:ään myös muistutus
+        df_tunnit.at[i,"Syötä uudet tunnit"] = safe_int(uudet)
         df_tunnit.at[i,"Erotus"] = erotus
         df_tunnit.at[i,"Muistutus"] = muistutus
 
@@ -729,7 +733,7 @@ with tab4:
         otsikko = Paragraph("Koneiden käyttötunnit ja huoltomuistutukset", otsikkotyyli)
 
         cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
-                "Huoltoväli_h","Huoltoväli_pv","Erotus","Muistutus"]
+                "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Erotus","Muistutus"]
         data = [cols]
 
         norm = ParagraphStyle(name="norm", fontName="Helvetica", fontSize=8)
@@ -749,7 +753,7 @@ with tab4:
                     row.append(Paragraph(val, norm))
             data.append(row)
 
-        col_widths = [120, 80, 100, 80, 70, 70, 70, 150]
+        col_widths = [120, 80, 100, 80, 60, 60, 80, 70, 150]
         table = Table(data, repeatRows=1, colWidths=col_widths)
         table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.teal),
@@ -762,25 +766,13 @@ with tab4:
             ('BOTTOMPADDING', (0,0), (-1,0), 6),
         ]))
 
-        def footer(canvas, doc):
-            canvas.saveState()
-            canvas.setFont('Helvetica', 8)
-            canvas.drawCentredString(420, 20, f"Sivu {doc.page}")
-            canvas.restoreState()
-
-        doc = SimpleDocTemplate(
-            buf, pagesize=landscape(A4),
-            rightMargin=0.5*inch, leftMargin=0.5*inch,
-            topMargin=0.7*inch, bottomMargin=0.5*inch
-        )
+        doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                                rightMargin=0.5*inch, leftMargin=0.5*inch,
+                                topMargin=0.7*inch, bottomMargin=0.5*inch)
         doc.build([Spacer(1, 4*mm),
-                   Table([[otsikko, paivays]], colWidths=[340, 340], style=[
-                       ("ALIGN", (0,0), (0,0), "LEFT"),
-                       ("ALIGN", (1,0), (1,0), "RIGHT"),
-                   ]),
+                   Table([[otsikko, paivays]], colWidths=[340, 340]),
                    Spacer(1, 4*mm),
-                   table],
-                   onFirstPage=footer, onLaterPages=footer)
+                   table])
         return buf.getvalue()
 
     st.download_button(
@@ -791,6 +783,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
