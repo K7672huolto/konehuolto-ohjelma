@@ -631,9 +631,7 @@ with tab3:
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset")
 
-    from datetime import datetime
-
-    # --- Tyylit (sama ulkoasu kuin mallissa) ---
+    # CSS
     st.markdown("""
     <style>
       div[data-testid="stNumberInput"] input::-webkit-outer-spin-button,
@@ -641,8 +639,10 @@ with tab4:
           -webkit-appearance: none !important;
           margin: 0 !important;
       }
-      div[data-testid="stNumberInput"] input[type=number] { -moz-appearance: textfield !important; }
-      div[data-testid="stNumberInput"] button,
+      div[data-testid="stNumberInput"] input[type=number] {
+          -moz-appearance: textfield !important;
+      }
+      div[data-testid="stNumberInput"] button { display: none !important; }
       div[data-testid="stNumberInput"] div[role="button"],
       div[data-testid="stNumberInput"] svg { display: none !important; }
       div[data-testid="stNumberInput"] input { text-align: left; }
@@ -651,12 +651,45 @@ with tab4:
     </style>
     """, unsafe_allow_html=True)
 
-    # --- Apurit ---
+    # --- Aputoiminnot ---
     def safe_int(x):
         try:
             return int(float(str(x).replace(",", ".").strip()))
         except:
             return 0
+
+    def viimeisin_huolto_ja_valit(df_huollot: pd.DataFrame, kone_nimi: str, koneet_df: pd.DataFrame):
+        """
+        Palauttaa (pvm_str, tunnit_int, hv_h, hv_pv).
+        Huoltovälit otetaan ensin koneet_df:stä (oletus),
+        mutta jos viimeisellä huollolla on omat arvot, ne yliajavat.
+        """
+        hv_h = 0
+        hv_pv = 0
+        try:
+            kone_rivi = koneet_df[koneet_df["Kone"] == kone_nimi].iloc[0]
+            hv_h = safe_int(kone_rivi.get("Huoltoväli_h", 0))
+            hv_pv = safe_int(kone_rivi.get("Huoltoväli_pv", 0))
+        except Exception:
+            pass
+
+        sub = df_huollot[df_huollot["Kone"] == kone_nimi].copy()
+        if sub.empty:
+            return "-", 0, hv_h, hv_pv
+
+        sub["pvm_dt"] = pd.to_datetime(sub["Päivämäärä"], dayfirst=True, errors="coerce")
+        sub = sub.sort_values("pvm_dt", ascending=False)
+        uusin = sub.iloc[0]
+
+        pvm_str = uusin.get("Päivämäärä", "-")
+        tunnit  = safe_int(uusin.get("Tunnit", 0))
+        hv_h_u  = safe_int(uusin.get("Huoltoväli_h", 0))
+        hv_pv_u = safe_int(uusin.get("Huoltoväli_pv", 0))
+
+        if hv_h_u > 0: hv_h = hv_h_u
+        if hv_pv_u > 0: hv_pv = hv_pv_u
+
+        return pvm_str, tunnit, hv_h, hv_pv
 
     def lue_kayttotunnit_sheet_df() -> pd.DataFrame:
         try:
@@ -681,39 +714,22 @@ with tab4:
         last_rows = tmp.groupby("Kone", as_index=False).tail(1)
         return {str(r["Kone"]): safe_int(r.get("Uudet tunnit", 0)) for _, r in last_rows.iterrows()}
 
-    def viimeisin_huolto_ja_valit(df_huollot: pd.DataFrame, kone_nimi: str):
-        """
-        Palauttaa (pvm_str, tunnit_int, huoltovali_h_int, huoltovali_pv_int)
-        koneen uusimman huoltotapahtuman mukaan Huollot-sheetiltä.
-        """
-        sub = df_huollot[df_huollot["Kone"] == kone_nimi].copy()
-        if sub.empty:
-            return "-", 0, 0, 0
-        sub["pvm_dt"] = pd.to_datetime(sub["Päivämäärä"], dayfirst=True, errors="coerce")
-        sub = sub.sort_values("pvm_dt", ascending=False)
-        uusin = sub.iloc[0]
-        pvm_str = uusin.get("Päivämäärä", "-")
-        tunnit  = safe_int(uusin.get("Tunnit", 0))
-        hv_h    = safe_int(uusin.get("Huoltoväli_h", 0))
-        hv_pv   = safe_int(uusin.get("Huoltoväli_pv", 0))
-        return pvm_str, tunnit, hv_h, hv_pv
-
     # Ei koneita
     if koneet_df.empty:
         st.info("Ei koneita lisättynä.")
         st.stop()
 
-    # Lataa Käyttötunnit-sheet ja viimeisimmät uudet tunnit konekohtaisesti
+    # Lue sheetit
     kaytto_df = lue_kayttotunnit_sheet_df()
     viimeisin_uudet_map = hae_viimeisin_uusi_tunti_map(kaytto_df)
 
-    # Rakenna näkymärivit (huoltovälit haetaan Huollot-sheetin uusimmasta rivistä!)
+    # Rakenna näkymärivit
     rivit = []
     for _, row in koneet_df.iterrows():
         kone = str(row["Kone"])
         ryhma = str(row.get("Ryhmä", ""))
 
-        pvm, viimeisin_tunnit, hv_h, hv_pv = viimeisin_huolto_ja_valit(huolto_df, kone)
+        pvm, viimeisin_tunnit, hv_h, hv_pv = viimeisin_huolto_ja_valit(huolto_df, kone, koneet_df)
         default_uudet = viimeisin_uudet_map.get(kone, viimeisin_tunnit)
 
         rivit.append({
@@ -727,37 +743,30 @@ with tab4:
         })
     df_tunnit = pd.DataFrame(rivit)
 
-    # Pidä syötteet sessiossa
     if "tab4_inputs" not in st.session_state:
         st.session_state.tab4_inputs = {}
 
-    # Otsikkorivi (sama ulkoasu)
-    colw = [0.18,0.10,0.13,0.10,0.08,0.08,0.13,0.10]
+    # Otsikkorivi
+    colw = [0.18,0.1,0.13,0.1,0.08,0.08,0.13,0.1]  
     headers = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
                "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Erotus"]
     cols = st.columns(colw, gap="small")
     for j, h in enumerate(headers):
         cols[j].markdown(f"<div class='tab4-table-header'>{h}</div>", unsafe_allow_html=True)
 
-    # Rivien tulostus + muistutukset
+    # Rivien tulostus
     for i, r in df_tunnit.iterrows():
         c = st.columns(colw, gap="small")
-
-        kone_n = r["Kone"]
-        ryhma  = r["Ryhmä"]
-        pvm    = r["Viimeisin huolto (pvm)"]
-        ed     = r["Viimeisin huolto (tunnit)"]
-        hv_h   = r["Huoltoväli_h"]
-        hv_pv  = r["Huoltoväli_pv"]
+        kone_n, ryhma, pvm = r["Kone"], r["Ryhmä"], r["Viimeisin huolto (pvm)"]
+        ed, hv_h, hv_pv = r["Viimeisin huolto (tunnit)"], r["Huoltoväli_h"], r["Huoltoväli_pv"]
 
         state_key = f"tab4_uudet_{i}"
         default_uudet = st.session_state.tab4_inputs.get(state_key, safe_int(r["Syötä uudet tunnit (default)"]))
         uudet = c[6].number_input("", min_value=0, step=1, value=int(default_uudet), key=f"tab4_num_{i}")
         st.session_state.tab4_inputs[state_key] = uudet
+        erotus = safe_int(uudet) - ed
 
-        erotus = safe_int(uudet) - safe_int(ed)
-
-        # Päiväperusteinen muistutus (nyt Huollot-sheetin arvoista)
+        # Muistutukset
         muistutus = ""
         if hv_pv > 0 and pvm != "-":
             try:
@@ -765,10 +774,9 @@ with tab4:
                 paivia_kulunut = (datetime.today() - viimeisin_pvm).days
                 if paivia_kulunut >= hv_pv:
                     muistutus = f"⚠️ {paivia_kulunut} pv (yli {hv_pv})"
-            except Exception:
+            except:
                 pass
 
-        # Solujen tulostus
         c[0].markdown(f"<div class='tab4-cell'><b>{kone_n}</b></div>", unsafe_allow_html=True)
         c[1].markdown(f"<div class='tab4-cell'>{ryhma}</div>", unsafe_allow_html=True)
         c[2].markdown(f"<div class='tab4-cell'>{pvm}</div>", unsafe_allow_html=True)
@@ -776,22 +784,19 @@ with tab4:
         c[4].markdown(f"<div class='tab4-cell'>{hv_h}</div>", unsafe_allow_html=True)
         c[5].markdown(f"<div class='tab4-cell'>{hv_pv}</div>", unsafe_allow_html=True)
 
-        # Tuntiperusteinen varoitus
         if hv_h > 0 and erotus >= hv_h:
             c[7].markdown(f"<div class='tab4-cell' style='color:#d00;'>⚠️ {erotus}</div>", unsafe_allow_html=True)
         else:
             c[7].markdown(f"<div class='tab4-cell'>{erotus}</div>", unsafe_allow_html=True)
 
-        # Päiväperusteinen varoitus pvm-sarakkeeseen
         if muistutus:
             c[2].markdown(f"<div class='tab4-cell' style='color:#d00;'>{pvm} {muistutus}</div>", unsafe_allow_html=True)
 
-        # Päivitetään DF talletusta/PDF:ää varten
-        df_tunnit.at[i, "Syötä uudet tunnit"] = safe_int(uudet)
-        df_tunnit.at[i, "Erotus"] = erotus
-        df_tunnit.at[i, "Muistutus"] = muistutus
+        df_tunnit.at[i,"Syötä uudet tunnit"] = safe_int(uudet)
+        df_tunnit.at[i,"Erotus"] = erotus
+        df_tunnit.at[i,"Muistutus"] = muistutus
 
-    # --- Tallenna Käyttötunnit-sheetille ---
+    # --- Tallenna ---
     if st.button("💾 Tallenna kaikkien koneiden tunnit ja muistutukset", key="tab4_save_all"):
         try:
             ws = get_gsheet_connection("Käyttötunnit")
@@ -800,12 +805,8 @@ with tab4:
             body = []
             for _, r in df_tunnit.iterrows():
                 body.append([
-                    nyt,
-                    r["Kone"],
-                    r["Ryhmä"],
-                    safe_int(r["Viimeisin huolto (tunnit)"]),
-                    safe_int(r.get("Syötä uudet tunnit", 0)),
-                    safe_int(r.get("Erotus", 0)),
+                    nyt, r["Kone"], r["Ryhmä"], safe_int(r["Viimeisin huolto (tunnit)"]),
+                    safe_int(r.get("Syötä uudet tunnit",0)), safe_int(r.get("Erotus",0))
                 ])
             ws.clear()
             ws.update([header] + body)
@@ -819,34 +820,38 @@ with tab4:
         otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
         paivays = Paragraph(datetime.today().strftime("%d.%m.%Y"),
                             ParagraphStyle("date", fontSize=12, alignment=2))
-        otsikko = Paragraph("Koneiden käyttötunnit ja muistutukset", otsikkotyyli)
+        otsikko = Paragraph("Koneiden käyttötunnit", otsikkotyyli)
 
         cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
                 "Huoltoväli_h","Huoltoväli_pv","Uudet tunnit","Erotus","Muistutus"]
         data = [cols]
 
         for _, r in df.iterrows():
-            k = Paragraph(f"<b>{str(r['Kone'])}</b>", ParagraphStyle(name="kb", fontName="Helvetica-Bold", fontSize=9))
+            k = Paragraph(f"<b>{str(r['Kone'])}</b>",
+                          ParagraphStyle(name="kb", fontName="Helvetica-Bold", fontSize=9))
             ry = str(r["Ryhmä"])
             pv = str(r["Viimeisin huolto (pvm)"])
-            ed = str(safe_int(r["Viimeisin huolto (tunnit)"]))
-            hvh = str(safe_int(r["Huoltoväli_h"]))
-            hvp = str(safe_int(r["Huoltoväli_pv"]))
-            uu = str(safe_int(r.get("Syötä uudet tunnit", 0)))
+            ed = safe_int(r["Viimeisin huolto (tunnit)"])
+            hvh = safe_int(r["Huoltoväli_h"])
+            hvp = safe_int(r["Huoltoväli_pv"])
+            uu = safe_int(r.get("Syötä uudet tunnit", 0))
             er = safe_int(r.get("Erotus", 0))
-            muistutus = str(r.get("Muistutus", ""))
+            muistutus = str(r.get("Muistutus",""))
 
-            if safe_int(r["Huoltoväli_h"]) > 0 and er >= safe_int(r["Huoltoväli_h"]):
-                er_cell = Paragraph(f"<font color='red'>⚠️ {er}</font>", ParagraphStyle(name="red", fontName="Helvetica", fontSize=9))
+            if hvh > 0 and er >= hvh:
+                er_cell = Paragraph(f"<font color='red'>⚠️ {er}</font>",
+                                    ParagraphStyle(name="red", fontName="Helvetica", fontSize=9))
             else:
                 er_cell = Paragraph(str(er), ParagraphStyle(name="norm", fontName="Helvetica", fontSize=9))
 
-            muistutus_cell = Paragraph(f"<font color='red'>{muistutus}</font>" if muistutus else "",
-                                       ParagraphStyle(name="m", fontName="Helvetica", fontSize=9))
+            muistutus_cell = Paragraph(
+                f"<font color='red'>{muistutus}</font>" if muistutus else "",
+                ParagraphStyle(name="m", fontName="Helvetica", fontSize=9)
+            )
 
-            data.append([k, ry, pv, ed, hvh, hvp, uu, er_cell, muistutus_cell])
+            data.append([k, ry, pv, str(ed), str(hvh), str(hvp), str(uu), er_cell, muistutus_cell])
 
-        col_widths = [120, 80, 100, 80, 70, 70, 80, 70, 140]
+        col_widths = [120, 80, 100, 80, 70, 70, 80, 70, 120]
         table = Table(data, repeatRows=1, colWidths=col_widths)
         table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.teal),
@@ -894,6 +899,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
