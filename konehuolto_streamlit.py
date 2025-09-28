@@ -627,7 +627,7 @@ with tab3:
 
 
 
-# ----------- TAB 4: KÄYTTÖTUNNIT + HUOLTOVÄLI MUISTUTUKSET + PDF -----------
+# ----------- TAB 4: KÄYTTÖTUNNIT + HUOLTOVÄLI MUISTUTUKSET + PDF + TALLENNUS -----------
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset")
 
@@ -695,7 +695,8 @@ with tab4:
         erotus = safe_int(uudet) - ed
 
         # Päiväperusteinen muistutus
-        muistutus = ""
+        muistutus_html = ""
+        muistutus_pdf = ""
         if hv_pv > 0 and pvm != "-":
             viimeisin_pvm = None
             try:
@@ -706,10 +707,12 @@ with tab4:
             if viimeisin_pvm and pd.notna(viimeisin_pvm):
                 paivia_kulunut = (datetime.today() - viimeisin_pvm).days
                 if paivia_kulunut >= hv_pv:
-                    muistutus = f"<span style='color:#d00;'>⚠️ {paivia_kulunut} pv (yli {hv_pv})</span>"
+                    muistutus_html = f"<span style='color:#d00;'>⚠️ {paivia_kulunut} pv (yli {hv_pv})</span>"
+                    muistutus_pdf = f"⚠️ {paivia_kulunut} pv (yli {hv_pv})"
                 else:
                     jaljella = hv_pv - paivia_kulunut
-                    muistutus = f"<span style='color:green;'>✅ {jaljella} pv jäljellä (väli {hv_pv})</span>"
+                    muistutus_html = f"<span style='color:green;'>✅ {jaljella} pv jäljellä (väli {hv_pv})</span>"
+                    muistutus_pdf = f"✅ {jaljella} pv jäljellä (väli {hv_pv})"
 
         # Tulostus
         c[0].markdown(f"<b>{kone}</b>", unsafe_allow_html=True)
@@ -718,11 +721,32 @@ with tab4:
         c[3].write(ed)
         c[4].write(hv_h)
         c[5].write(hv_pv)
-        c[7].markdown(muistutus, unsafe_allow_html=True)
+        c[7].markdown(muistutus_html, unsafe_allow_html=True)
 
         df_tunnit.at[i,"Syötä uudet tunnit"] = safe_int(uudet)
         df_tunnit.at[i,"Erotus"] = erotus
-        df_tunnit.at[i,"Muistutus"] = muistutus
+        df_tunnit.at[i,"Muistutus"] = muistutus_html
+        df_tunnit.at[i,"Muistutus_pdf"] = muistutus_pdf
+
+    # --- Tallennus Google Sheetiin ---
+    if st.button("💾 Tallenna kaikkien koneiden tunnit ja muistutukset", key="tab4_save_all"):
+        try:
+            ws = get_gsheet_connection("Käyttötunnit")
+            nyt = datetime.today().strftime("%d.%m.%Y %H:%M")
+            header = ["Aika","Kone","Ryhmä","Edellinen huolto","Uudet tunnit","Erotus"]
+            body = []
+            for _, r in df_tunnit.iterrows():
+                body.append([
+                    nyt, r["Kone"], r["Ryhmä"],
+                    safe_int(r["Viimeisin huolto (tunnit)"]),
+                    safe_int(r.get("Syötä uudet tunnit",0)),
+                    safe_int(r.get("Erotus",0))
+                ])
+            ws.clear()
+            ws.update([header] + body)
+            st.success("Tallennettu Käyttötunnit-välilehdelle!")
+        except Exception as e:
+            st.error(f"Tallennus epäonnistui: {e}")
 
     # --- PDF ---
     def make_pdf_bytes(df: pd.DataFrame):
@@ -733,8 +757,9 @@ with tab4:
         otsikko = Paragraph("Koneiden käyttötunnit ja huoltomuistutukset", otsikkotyyli)
 
         cols = ["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
-                "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Erotus","Muistutus"]
-        data = [cols]
+                "Huoltoväli_h","Huoltoväli_pv","Syötä uudet tunnit","Erotus","Muistutus_pdf"]
+        data = [["Kone","Ryhmä","Viimeisin huolto (pvm)","Viimeisin huolto (tunnit)",
+                 "Huoltoväli_h","Huoltoväli_pv","Uudet tunnit","Erotus","Muistutus"]]
 
         norm = ParagraphStyle(name="norm", fontName="Helvetica", fontSize=8)
         kone_bold = ParagraphStyle(name="kone_bold", fontName="Helvetica-Bold", fontSize=8)
@@ -783,6 +808,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
