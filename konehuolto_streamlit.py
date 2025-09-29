@@ -715,7 +715,7 @@ with tab4:
 
     # --- Rivien tulostus ---
     for i, r in df_tunnit.iterrows():
-        c = st.columns(colw, gap="small")
+        c = st.columns(colw, gap="small")   # kaikki samalla rivillä
         kone, ryhma, pvm = r["Kone"], r["Ryhmä"], r["Viimeisin huolto (pvm)"]
         ed, hv_h, hv_pv = r["Viimeisin huolto (tunnit)"], r["Huoltoväli_h"], r["Huoltoväli_pv"]
 
@@ -850,6 +850,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
