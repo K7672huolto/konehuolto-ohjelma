@@ -736,8 +736,8 @@ with tab4:
             if pd.notna(viimeisin_pvm):
                 paivia_kulunut = (datetime.today() - viimeisin_pvm).days
                 if paivia_kulunut >= hv_pv:
-                    muistutus_html = f"<span style='color:#d00;'>⚠️ {paivia_kulunut} pv (yli {hv_pv})</span>"
-                    muistutus_pdf = f"⚠️ {paivia_kulunut} pv (yli {hv_pv})"
+                    muistutus_html = f"<span style='color:#d00;'>⚠️ {paivia_kulunut} pv (kulunut {hv_pv})</span>"
+                    muistutus_pdf = f"⚠️ {paivia_kulunut} pv (kulunut {hv_pv})"
                 else:
                     jaljella = hv_pv - paivia_kulunut
                     muistutus_html = f"<span style='color:green;'>✅ {jaljella} pv jäljellä (väli {hv_pv})</span>"
@@ -853,6 +853,7 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
 
 
 
