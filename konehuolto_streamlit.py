@@ -715,13 +715,16 @@ with tab4:
 
     # --- Rivien tulostus ---
     for i, r in df_tunnit.iterrows():
-        c = st.columns(colw, gap="small")   # kaikki samalla rivillä
+        c = st.columns(colw, gap="small")
         kone, ryhma, pvm = r["Kone"], r["Ryhmä"], r["Viimeisin huolto (pvm)"]
         ed, hv_h, hv_pv = r["Viimeisin huolto (tunnit)"], r["Huoltoväli_h"], r["Huoltoväli_pv"]
 
         state_key = f"tab4_num_{i}"
         default_val = st.session_state.get(state_key, safe_int(r["Syötä uudet tunnit"]))
-        uudet = c[6].number_input("", min_value=0, step=1, value=default_val, key=state_key)
+        uudet = c[6].number_input(
+            label=" ", min_value=0, step=1, value=default_val,
+            key=state_key, label_visibility="collapsed"
+        )
 
         erotus = safe_int(uudet) - ed
 
@@ -742,8 +745,8 @@ with tab4:
 
         # Tulostus samalla rivillä
         c[0].markdown(f"<b>{kone}</b>", unsafe_allow_html=True)
-        c[1].write(ryhma)
-        c[2].write(pvm)
+        c[1].markdown(ryhma, unsafe_allow_html=True)
+        c[2].markdown(pvm, unsafe_allow_html=True)
         c[3].markdown(f"<span style='font-size:14px;'>{ed}</span>", unsafe_allow_html=True)
         c[4].markdown(f"<span style='font-size:14px;'>{hv_h}</span>", unsafe_allow_html=True)
         c[5].markdown(f"<span style='font-size:14px;'>{hv_pv}</span>", unsafe_allow_html=True)
@@ -850,6 +853,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
