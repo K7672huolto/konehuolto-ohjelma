@@ -631,21 +631,13 @@ with tab3:
 with tab4:
     st.header("Kaikkien koneiden käyttötunnit, erotus ja muistutukset")
 
-    # --- CSS: syöttökenttä samalla rivillä muiden kanssa ---
+    # --- CSS: piilotetaan + ja - napit number_inputista ---
     st.markdown("""
     <style>
-      div[data-testid="stNumberInput"] {
-          margin-top: -8px;
-          margin-bottom: -8px;
-      }
-      div[data-testid="stNumberInput"] label {
-          display: none;
-      }
-      div[data-testid="stNumberInput"] input {
-          text-align: left;
-          font-size: 14px;
-          height: 28px;
-      }
+      div[data-testid="stNumberInput"] button {display: none;}
+      div[data-testid="stNumberInput"] div[role="button"] {display: none;}
+      div[data-testid="stNumberInput"] svg {display: none;}
+      div[data-testid="stNumberInput"] input {text-align: left;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -657,7 +649,7 @@ with tab4:
             return 0
 
     def viimeisin_huolto(df_huollot: pd.DataFrame, kone_nimi: str):
-        sub = df_huolot[df_huolot["Kone"] == kone_nimi].copy()
+        sub = df_huollot[df_huollot["Kone"] == kone_nimi].copy()
         if sub.empty:
             return "-", 0
         sub["pvm_dt"] = pd.to_datetime(sub["Päivämäärä"], dayfirst=True, errors="coerce")
@@ -729,12 +721,13 @@ with tab4:
 
         state_key = f"tab4_num_{i}"
         default_val = st.session_state.get(state_key, safe_int(r["Syötä uudet tunnit"]))
-        uudet = c[6].number_input("", min_value=0, step=1, value=default_val, key=state_key, label_visibility="collapsed")
+        uudet = c[6].number_input("", min_value=0, step=1, value=default_val, key=state_key)
 
         erotus = safe_int(uudet) - ed
 
         # Päiväperusteinen muistutus
-        muistutus_html, muistutus_pdf = "", ""
+        muistutus_html = ""
+        muistutus_pdf = ""
         if hv_pv > 0 and pvm != "-":
             viimeisin_pvm = pd.to_datetime(pvm, dayfirst=True, errors="coerce")
             if pd.notna(viimeisin_pvm):
@@ -747,7 +740,7 @@ with tab4:
                     muistutus_html = f"<span style='color:green;'>✅ {jaljella} pv jäljellä (väli {hv_pv})</span>"
                     muistutus_pdf = f"✅ {jaljella} pv jäljellä (väli {hv_pv})"
 
-        # Tulostus
+        # Tulostus samalla rivillä
         c[0].markdown(f"<b>{kone}</b>", unsafe_allow_html=True)
         c[1].write(ryhma)
         c[2].write(pvm)
@@ -786,6 +779,12 @@ with tab4:
             st.error(f"Tallennus epäonnistui: {e}")
 
     # --- PDF-lataus ---
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.pagesizes import landscape, A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch, mm
+
     def make_pdf_bytes(df: pd.DataFrame):
         buf = BytesIO()
         otsikkotyyli = ParagraphStyle(name="otsikko", fontName="Helvetica-Bold", fontSize=16)
@@ -806,7 +805,7 @@ with tab4:
                 val = str(r.get(c,""))
                 if j == 0:
                     row.append(Paragraph(val, kone_bold))
-                elif j == 7:  # Huollosta
+                elif j == 7:
                     hvh = safe_int(r.get("Huoltoväli_h",0))
                     er = safe_int(val)
                     if hvh > 0 and er >= hvh:
@@ -851,6 +850,8 @@ with tab4:
         type="secondary",
         key="tab4_pdf_dl"
     )
+
+
 
 
 
